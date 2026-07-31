@@ -1,0 +1,14 @@
+{
+  "name": "nexus-ai-trading-root",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node start-dev.js",
+    "dev:fr": "npm --prefix \"Trading FR\" run dev",
+    "build": "npm --prefix \"Trading FR\" run build",
+    "start": "npm --prefix \"Trading BK\" start",
+    "seed": "npm --prefix \"Trading BK\" run seed",
+    "tunnel": "npm --prefix \"Trading FR\" run tunnel"
+  }
+}

@@ -1,0 +1,200 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#060913] text-slate-100 antialiased font-sans overflow-x-hidden transition-colors duration-300;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.12) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.10) 0px, transparent 50%),
+      radial-gradient(at 50% 50%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
+  }
+}
+
+/* ========================================================================= */
+/* ELIMINAZIONE TOTALE ED INCONDIZIONATA DI LUCCHETTI ED EXTENSIONS BROWSER  */
+/* ========================================================================= */
+input::-webkit-credentials-auto-fill-button,
+input::-webkit-contacts-auto-fill-button,
+input::-webkit-password-toggle-button,
+input::-ms-reveal,
+input::-ms-clear,
+input::-ms-expand,
+input::-webkit-search-decoration,
+input::-webkit-search-cancel-button,
+input::-webkit-search-results-button,
+input::-webkit-search-results-decoration,
+div[data-lastpass-icon-root],
+com-1password-button,
+iframe[src*="1password"],
+[data-dashlane-rid],
+.dashlane-icon,
+._1password-icon {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  left: -9999px !important;
+}
+
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear,
+input[type="password"]::-webkit-credentials-auto-fill-button {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* ========================================================================= */
+/* TEMA CHIARO LUMINOSO AD ALTISSIMO CONTRASTO (NEXUS LIGHT PLATINUM THEME)  */
+/* ========================================================================= */
+body.nexus-light-theme {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  background-image: none !important;
+}
+
+/* 1. CONTENITORI PRINCIPALI, HEADER & GLASS PANELS */
+body.nexus-light-theme header,
+body.nexus-light-theme .glass-panel {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06) !important;
+}
+
+body.nexus-light-theme .bg-slate-900,
+body.nexus-light-theme .bg-slate-950,
+body.nexus-light-theme .bg-slate-900\/90,
+body.nexus-light-theme .bg-slate-950\/80,
+body.nexus-light-theme .bg-slate-950\/60,
+body.nexus-light-theme .bg-slate-900\/60,
+body.nexus-light-theme .bg-slate-900\/40,
+body.nexus-light-theme .bg-slate-800,
+body.nexus-light-theme .bg-slate-800\/60,
+body.nexus-light-theme .bg-slate-800\/80,
+body.nexus-light-theme .bg-\[\#0b0f19\],
+body.nexus-light-theme .bg-\[\#060913\] {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+/* 2. BADGE GUADAGNO NETTO & CAMPANELLA NOTIFICHE IN HEADER */
+body.nexus-light-theme header .bg-slate-900\/80,
+body.nexus-light-theme header button {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+body.nexus-light-theme .text-emerald-400 {
+  color: #059669 !important;
+}
+
+body.nexus-light-theme .text-rose-400 {
+  color: #e11d48 !important;
+}
+
+/* 3. CONTENITORI DELLE SOTTO-NAVIGAZIONI (PIL BAR / SUB-TABS CONTAINERS) */
+body.nexus-light-theme div.bg-slate-900\/60,
+body.nexus-light-theme div.bg-slate-900,
+body.nexus-light-theme div.bg-slate-950 {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* 4. TESTI GENERICI, INTESTAZIONI ED ETICHETTE */
+body.nexus-light-theme .text-slate-100,
+body.nexus-light-theme .text-slate-200,
+body.nexus-light-theme .text-slate-300,
+body.nexus-light-theme .text-white {
+  color: #0f172a !important;
+}
+
+body.nexus-light-theme .text-slate-400,
+body.nexus-light-theme .text-slate-500 {
+  color: #334155 !important;
+}
+
+body.nexus-light-theme .text-blue-400 {
+  color: #2563eb !important;
+}
+
+/* 5. TASTI DEL MENU LATERALE DI NAVIGAZIONE IN TEMA CHIARO */
+body.nexus-light-theme nav button {
+  border: 1px solid #cbd5e1 !important;
+  background-color: #ffffff !important;
+  color: #334155 !important;
+}
+
+body.nexus-light-theme nav button:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+body.nexus-light-theme nav button.bg-blue-600\/20 {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #2563eb !important;
+}
+
+/* 6. TASTI DI SOTTO-NAVIGAZIONE ATTIVI E DISATTIVI (TRADE, PORTAFOLIO, JOURNAL) */
+body.nexus-light-theme button.bg-blue-600,
+body.nexus-light-theme button.bg-blue-600\/20 {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #2563eb !important;
+}
+
+body.nexus-light-theme button.bg-slate-900\/60,
+body.nexus-light-theme button.bg-slate-800\/40,
+body.nexus-light-theme button.bg-slate-800\/60 {
+  background-color: #ffffff !important;
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.nexus-light-theme button.bg-slate-900\/60:hover,
+body.nexus-light-theme button.bg-slate-800\/40:hover,
+body.nexus-light-theme button.bg-slate-800\/60:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* 7. CARDS, GRAFICI E SEZIONI INTERNE */
+body.nexus-light-theme .border-slate-800,
+body.nexus-light-theme .border-slate-800\/80,
+body.nexus-light-theme .border-slate-700,
+body.nexus-light-theme .border-slate-700\/80 {
+  border-color: #cbd5e1 !important;
+}
+
+/* 8. INPUT FORMS & SELECTS IN TEMA CHIARO */
+body.nexus-light-theme input,
+body.nexus-light-theme select,
+body.nexus-light-theme textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.nexus-light-theme input::placeholder,
+body.nexus-light-theme textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* 9. TABELLE STORICO & CONTO */
+body.nexus-light-theme table tr {
+  border-color: #e2e8f0 !important;
+}
+
+body.nexus-light-theme table tr:hover {
+  background-color: #f8fafc !important;
+}
