@@ -1,0 +1,18 @@
+{
+  "functions": {
+    "api/accounts.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/accounts",
+      "destination": "/api/accounts.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
