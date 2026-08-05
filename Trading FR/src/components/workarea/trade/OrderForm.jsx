@@ -211,11 +211,11 @@ const OrderForm = ({ onSubmitOrder, selectedAsset: propAsset, onAssetChange }) =
           </div>
         </div>
 
-        {/* Sezione Stop Loss Multipli */}
+        {/* Sezione Stop Loss */}
         <div className="space-y-2 p-3.5 rounded-2xl bg-slate-900/40 border border-slate-800">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-1.5">
-              <span className="text-slate-300 font-semibold text-[11px]">Stop Loss Multipli (Protezione)</span>
+              <span className="text-slate-300 font-semibold text-[11px]">Stop Loss</span>
               <span className="text-[10px] text-slate-400 font-mono">
                 ({side === 'BUY' ? 'Prezzo < Ingresso' : 'Prezzo > Ingresso'})
               </span>
@@ -232,32 +232,56 @@ const OrderForm = ({ onSubmitOrder, selectedAsset: propAsset, onAssetChange }) =
           {stopLosses.map((slVal, index) => (
             <div key={index} className="flex items-center gap-2">
               <span className="text-[10px] font-mono text-slate-400 w-8">SL {index + 1}:</span>
-              <input
-                type="number"
-                step="any"
-                value={slVal}
-                onChange={(e) => handleStopLossChange(index, e.target.value)}
-                placeholder={`Prezzo SL ${index + 1} (${side === 'BUY' ? 'Sotto $' + livePrice : 'Sopra $' + livePrice})`}
-                className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500 font-mono"
-              />
+              <div className="flex-1 flex items-center bg-slate-950 border border-slate-800 rounded-xl overflow-hidden focus-within:border-blue-500">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const val = parseFloat(slVal) || livePrice;
+                    handleStopLossChange(index, Math.max(0, (val - 1)).toFixed(2));
+                  }}
+                  className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-blue-400 font-bold text-xs border-r border-slate-800 transition-colors"
+                  title="Diminuisci SL di $1"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  step="any"
+                  value={slVal}
+                  onChange={(e) => handleStopLossChange(index, e.target.value)}
+                  placeholder={`Prezzo SL ${index + 1}`}
+                  className="flex-1 bg-transparent px-3 py-2 text-slate-200 focus:outline-none font-mono text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const val = parseFloat(slVal) || livePrice;
+                    handleStopLossChange(index, (val + 1).toFixed(2));
+                  }}
+                  className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-blue-400 font-bold text-xs border-l border-slate-800 transition-colors"
+                  title="Aumenta SL di $1"
+                >
+                  +
+                </button>
+              </div>
               {stopLosses.length > 1 && (
                 <button
                   type="button"
                   onClick={() => handleRemoveStopLoss(index)}
-                  className="px-2 py-1 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/30 text-[10px]"
+                  className="px-2 py-1 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/30 text-[10px] font-bold"
                 >
-                  ✕
+                  X
                 </button>
               )}
             </div>
           ))}
         </div>
 
-        {/* Sezione Take Profit Multipli */}
+        {/* Sezione Take Profit */}
         <div className="space-y-2 p-3.5 rounded-2xl bg-slate-900/40 border border-slate-800">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-1.5">
-              <span className="text-slate-300 font-semibold text-[11px]">Take Profit Multipli (Target)</span>
+              <span className="text-slate-300 font-semibold text-[11px]">Take Profit</span>
               <span className="text-[10px] text-slate-400 font-mono">
                 ({side === 'BUY' ? 'Prezzo > Ingresso' : 'Prezzo < Ingresso'})
               </span>
@@ -274,21 +298,45 @@ const OrderForm = ({ onSubmitOrder, selectedAsset: propAsset, onAssetChange }) =
           {takeProfits.map((tpVal, index) => (
             <div key={index} className="flex items-center gap-2">
               <span className="text-[10px] font-mono text-slate-400 w-8">TP {index + 1}:</span>
-              <input
-                type="number"
-                step="any"
-                value={tpVal}
-                onChange={(e) => handleTakeProfitChange(index, e.target.value)}
-                placeholder={`Prezzo TP ${index + 1} (${side === 'BUY' ? 'Sopra $' + livePrice : 'Sotto $' + livePrice})`}
-                className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500 font-mono"
-              />
+              <div className="flex-1 flex items-center bg-slate-950 border border-slate-800 rounded-xl overflow-hidden focus-within:border-emerald-500">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const val = parseFloat(tpVal) || livePrice;
+                    handleTakeProfitChange(index, Math.max(0, (val - 1)).toFixed(2));
+                  }}
+                  className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-emerald-400 font-bold text-xs border-r border-slate-800 transition-colors"
+                  title="Diminuisci TP di $1"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  step="any"
+                  value={tpVal}
+                  onChange={(e) => handleTakeProfitChange(index, e.target.value)}
+                  placeholder={`Prezzo TP ${index + 1}`}
+                  className="flex-1 bg-transparent px-3 py-2 text-slate-200 focus:outline-none font-mono text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const val = parseFloat(tpVal) || livePrice;
+                    handleTakeProfitChange(index, (val + 1).toFixed(2));
+                  }}
+                  className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-emerald-400 font-bold text-xs border-l border-slate-800 transition-colors"
+                  title="Aumenta TP di $1"
+                >
+                  +
+                </button>
+              </div>
               {takeProfits.length > 1 && (
                 <button
                   type="button"
                   onClick={() => handleRemoveTakeProfit(index)}
-                  className="px-2 py-1 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/30 text-[10px]"
+                  className="px-2 py-1 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/30 text-[10px] font-bold"
                 >
-                  ✕
+                  X
                 </button>
               )}
             </div>

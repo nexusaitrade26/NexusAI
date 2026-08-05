@@ -63,7 +63,7 @@ const HomePage = ({ onSelectTab, onNavigateToSection, onNavigateToPortfolio }) =
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-4 sm:pt-6">
       <SectionHeader
         title="Dashboard Executive Hub"
         subtitle="Sintesi panoramica in tempo reale delle 4 sezioni principali: Trade, Portafolio, Journal e Studio."

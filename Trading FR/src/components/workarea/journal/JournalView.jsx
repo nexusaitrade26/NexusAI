@@ -57,6 +57,14 @@ const JournalView = () => {
     setFeedback({ type: 'success', message: 'Trade rimosso dal Diario Operativo.' });
   };
 
+  const handleClearAllTrades = () => {
+    const clearClosedTrades = useTradingStore.getState().clearClosedTrades;
+    if (clearClosedTrades) {
+      clearClosedTrades();
+    }
+    setFeedback({ type: 'success', message: 'Tutto lo storico dei trade chiusi è stato eliminato dal Diario.' });
+  };
+
   return (
     <div className="space-y-6">
       <SectionHeader
@@ -88,6 +96,7 @@ const JournalView = () => {
         trades={filteredTrades}
         onUpdateTag={handleUpdateTag}
         onDeleteTrade={handleDeleteTrade}
+        onClearAll={handleClearAllTrades}
       />
     </div>
   );

@@ -146,7 +146,7 @@ const AIMarketAnalysisBox = ({
   return (
     <Card className="border-purple-500/30 p-5 space-y-4">
       {/* Contenitore con scorrimento verticale interno max-h-[560px] */}
-      <div className="max-h-[560px] overflow-y-auto pr-1 space-y-4 font-sans">
+      <div className="max-h-[560px] overflow-y-auto custom-scrollbar pr-2 space-y-4 font-sans">
         
         {/* HEADER: TITOLO + BADGE AFFIDABILITÀ + TIKER ASSET + PULSANTE RI-ANALIZZA */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800 pb-3">

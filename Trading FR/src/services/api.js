@@ -1,7 +1,8 @@
 import {
-  FALLBACK_STUDIO_LEVELS,
-  FALLBACK_STUDIO_CATEGORIES,
+  getFallbackStudioLevels,
+  getFallbackStudioCategories,
   getFallbackLessonDetail,
+  toggleCompletedLesson,
   FALLBACK_WORKAREA_POSITIONS,
   FALLBACK_WORKAREA_ORDERS,
   FALLBACK_WORKAREA_TRADES,
@@ -83,13 +84,28 @@ export async function fetchApi(endpoint, options = {}) {
       }
       return getFallbackAiAnalysis(asset, budget);
     }
+    if (endpoint.includes('/progress')) {
+      const match = endpoint.match(/\/studio\/lessons\/([^/]+)\/progress/);
+      const lessonId = match ? match[1] : null;
+      let completed = true;
+      if (options.body) {
+        try {
+          const parsed = JSON.parse(options.body);
+          if (typeof parsed.completed === 'boolean') completed = parsed.completed;
+        } catch (_) {}
+      }
+      if (lessonId) {
+        toggleCompletedLesson(lessonId, completed);
+      }
+      return { success: true, lessonId, completed };
+    }
     if (endpoint.includes('/studio/levels')) {
-      return { levels: FALLBACK_STUDIO_LEVELS };
+      return { levels: getFallbackStudioLevels() };
     }
     if (endpoint.includes('/studio/categories')) {
       const match = endpoint.match(/level_code=([^&]+)/);
       const levelCode = match ? match[1] : 'base';
-      return FALLBACK_STUDIO_CATEGORIES[levelCode] || FALLBACK_STUDIO_CATEGORIES.base;
+      return getFallbackStudioCategories(levelCode);
     }
     if (endpoint.includes('/studio/lessons/')) {
       const lessonId = endpoint.split('/studio/lessons/')[1]?.split('/')[0];

@@ -2,14 +2,14 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import { useTradingStore } from '../store/useTradingStore';
 
 const INITIAL_PRICES = {
-  'BTC/USD': 63807.87,
-  'ETH/USD': 1912.62,
-  'NVDA': 197.65,
-  'AAPL': 339.14,
-  'TSLA': 306.71,
-  'EUR/USD': 1.1379,
-  'GOLD': 4040.60,
-  'OIL': 78.51,
+  'BTC/USD': 64250.00,
+  'ETH/USD': 3450.00,
+  'NVDA': 125.50,
+  'AAPL': 224.30,
+  'TSLA': 208.40,
+  'EUR/USD': 1.0860,
+  'GOLD': 2415.00,
+  'OIL': 76.80,
 };
 
 const MarketContext = createContext();
@@ -17,6 +17,7 @@ const MarketContext = createContext();
 export const MarketProvider = ({ children }) => {
   const [selectedAsset, setSelectedAsset] = useState('BTC/USD');
   const [prices, setPrices] = useState(INITIAL_PRICES);
+  const [basePrices, setBasePrices] = useState(INITIAL_PRICES);
   const [priceChanges] = useState({
     'BTC/USD': '+2.45%',
     'ETH/USD': '+1.82%',
@@ -29,17 +30,17 @@ export const MarketProvider = ({ children }) => {
   });
 
   const getLivePrice = useCallback((assetSymbol) => {
-    if (!assetSymbol) return prices[selectedAsset] || 63807.87;
+    if (!assetSymbol) return prices[selectedAsset] || 64250.00;
     const clean = assetSymbol.toUpperCase().trim();
     if (prices[clean]) return prices[clean];
-    if (clean.includes('BTC')) return prices['BTC/USD'] || 63807.87;
-    if (clean.includes('ETH')) return prices['ETH/USD'] || 1912.62;
-    if (clean.includes('NVDA')) return prices['NVDA'] || 197.65;
-    if (clean.includes('AAPL')) return prices['AAPL'] || 339.14;
-    if (clean.includes('TSLA')) return prices['TSLA'] || 306.71;
-    if (clean.includes('EUR')) return prices['EUR/USD'] || 1.1379;
-    if (clean.includes('GOLD')) return prices['GOLD'] || 4040.60;
-    if (clean.includes('OIL')) return prices['OIL'] || 78.51;
+    if (clean.includes('BTC')) return prices['BTC/USD'] || 64250.00;
+    if (clean.includes('ETH')) return prices['ETH/USD'] || 3450.00;
+    if (clean.includes('NVDA')) return prices['NVDA'] || 125.50;
+    if (clean.includes('AAPL')) return prices['AAPL'] || 224.30;
+    if (clean.includes('TSLA')) return prices['TSLA'] || 208.40;
+    if (clean.includes('EUR')) return prices['EUR/USD'] || 1.0860;
+    if (clean.includes('GOLD')) return prices['GOLD'] || 2415.00;
+    if (clean.includes('OIL')) return prices['OIL'] || 76.80;
     return prices[selectedAsset] || 100.00;
   }, [prices, selectedAsset]);
 
@@ -69,11 +70,8 @@ export const MarketProvider = ({ children }) => {
             const btcVal = parseFloat(parseFloat(btcData.price).toFixed(2));
             const ethVal = parseFloat(parseFloat(ethData.price).toFixed(2));
 
-            setPrices((prev) => ({
-              ...prev,
-              'BTC/USD': btcVal,
-              'ETH/USD': ethVal
-            }));
+            setBasePrices((prev) => ({ ...prev, 'BTC/USD': btcVal, 'ETH/USD': ethVal }));
+            setPrices((prev) => ({ ...prev, 'BTC/USD': btcVal, 'ETH/USD': ethVal }));
           }
         }
       } catch (err) {
@@ -101,10 +99,8 @@ export const MarketProvider = ({ children }) => {
           const data = await res.json();
           if (isMounted && data.rates?.USD) {
             const eurVal = parseFloat(parseFloat(data.rates.USD).toFixed(4));
-            setPrices((prev) => ({
-              ...prev,
-              'EUR/USD': eurVal
-            }));
+            setBasePrices((prev) => ({ ...prev, 'EUR/USD': eurVal }));
+            setPrices((prev) => ({ ...prev, 'EUR/USD': eurVal }));
           }
         }
       } catch (err) {
@@ -121,7 +117,7 @@ export const MarketProvider = ({ children }) => {
     };
   }, []);
 
-  // 3. Recupero Prezzi REALI di Mercato da Yahoo Finance per Stock & Commodities (NVDA, AAPL, TSLA, GOLD, OIL)
+  // 3. Recupero Prezzi REALI di Mercato da Yahoo Finance o API di riserva per Stock & Commodities
   useEffect(() => {
     let isMounted = true;
 
@@ -141,10 +137,9 @@ export const MarketProvider = ({ children }) => {
             const data = await res.json();
             const liveVal = data?.chart?.result?.[0]?.meta?.regularMarketPrice;
             if (isMounted && liveVal) {
-              setPrices((prev) => ({
-                ...prev,
-                [item.key]: parseFloat(parseFloat(liveVal).toFixed(2))
-              }));
+              const val = parseFloat(parseFloat(liveVal).toFixed(2));
+              setBasePrices((prev) => ({ ...prev, [item.key]: val }));
+              setPrices((prev) => ({ ...prev, [item.key]: val }));
             }
           }
         } catch (err) {
@@ -162,26 +157,26 @@ export const MarketProvider = ({ children }) => {
     };
   }, []);
 
-  // Micro-tick dinamico per mantenere i prezzi 100% attivi anche a mercati chiusi
+  // Micro-tick guidato ancorato al prezzo reale per micro-movimento senza deriva permanente
   useEffect(() => {
     const interval = setInterval(() => {
       setPrices((prev) => {
         const assetToTick = selectedAsset;
-        const current = prev[assetToTick] || 100;
-        let delta = (Math.random() - 0.49) * (current * 0.0001);
-        const nextPrice = Math.max(0.0001, current + delta);
-        
+        const base = basePrices[assetToTick] || prev[assetToTick] || 100;
+        let jitter = (Math.random() - 0.5) * (base * 0.0002);
+        const nextPrice = Math.max(0.0001, base + jitter);
+
         return {
           ...prev,
-          [assetToTick]: assetToTick.includes('EUR') 
-            ? parseFloat(nextPrice.toFixed(4)) 
+          [assetToTick]: assetToTick.includes('EUR')
+            ? parseFloat(nextPrice.toFixed(4))
             : parseFloat(nextPrice.toFixed(2))
         };
       });
     }, 1500);
 
     return () => clearInterval(interval);
-  }, [selectedAsset]);
+  }, [selectedAsset, basePrices]);
 
   return (
     <MarketContext.Provider

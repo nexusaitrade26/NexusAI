@@ -19,6 +19,7 @@ const ALL_TRADINGVIEW_ASSETS = [
 
 const CommunityNexusPage = () => {
   const [subTab, setSubTab] = useState('feed'); // 'feed' | 'copy_trading' | 'share'
+  const isSubNavFixed = useTradingStore((state) => state.isSubNavFixed);
 
   // Genera post iniziali prendendoli dalle 3 operazioni dei 50 trader
   const initialPostsFrom50Traders = GENERATED_COMMUNITY_TRADERS.flatMap((trader) =>
@@ -286,7 +287,14 @@ const CommunityNexusPage = () => {
       </div>
 
       {/* Sub-Navigazione della Community Nexus */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto no-scrollbar">
+      <div
+        className={`transition-all duration-200 ${
+          isSubNavFixed
+            ? 'sticky top-0 z-30 py-2.5 mb-6 bg-[#060913]/95 backdrop-blur-md border-b border-slate-800/80 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 shadow-2xl'
+            : 'relative py-2 mb-6'
+        }`}
+      >
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-1 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setSubTab('feed')}
           className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${
@@ -320,6 +328,7 @@ const CommunityNexusPage = () => {
           Condividi la Tua Posizione / Report
         </button>
       </div>
+    </div>
 
       {/* ================= VISTA 1: FEED SOCIAL & TRADE SHARES ================= */}
       {subTab === 'feed' && (

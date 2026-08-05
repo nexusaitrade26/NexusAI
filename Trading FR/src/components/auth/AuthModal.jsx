@@ -56,12 +56,12 @@ const AuthModal = ({ isOpen, onClose, currentUser, onUserChange, onLogoutRedirec
   if (!isOpen) return null;
 
   // Login Account Reale
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     setFeedback(null);
     setIsLoading(true);
     try {
-      const user = loginAccount(username, password);
+      const user = await loginAccount(username, password);
       setFeedback({ type: 'success', message: `Bentornato, ${user.username}! Accesso effettuato con successo.` });
       
       onUserChange(user);
@@ -78,12 +78,12 @@ const AuthModal = ({ isOpen, onClose, currentUser, onUserChange, onLogoutRedirec
   };
 
   // Registrazione Nuovo Account Reale
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     setFeedback(null);
     setIsLoading(true);
     try {
-      const newUser = registerAccount({
+      const newUser = await registerAccount({
         username,
         email,
         password,
@@ -113,8 +113,8 @@ const AuthModal = ({ isOpen, onClose, currentUser, onUserChange, onLogoutRedirec
     setIsLoading(true);
     try {
       const accounts = getRegisteredAccounts();
-      const query = forgotEmail.trim().toLowerCase();
-      const found = Object.values(accounts).find((acc) => acc.email.toLowerCase() === query);
+      const query = (forgotEmail || '').trim().toLowerCase();
+      const found = Object.values(accounts).find((acc) => acc && acc.email && acc.email.toLowerCase() === query);
 
       if (!found) {
         throw new Error('Nessun account registrato trovato con questo indirizzo email.');
@@ -165,7 +165,7 @@ const AuthModal = ({ isOpen, onClose, currentUser, onUserChange, onLogoutRedirec
       const accounts = getRegisteredAccounts();
       const query = forgotEmail.trim().toLowerCase();
       const foundKey = Object.keys(accounts).find(
-        (k) => accounts[k].email.toLowerCase() === query
+        (k) => accounts[k] && accounts[k].email && accounts[k].email.toLowerCase() === query
       );
 
       if (!foundKey) {

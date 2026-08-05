@@ -3,6 +3,18 @@
 @tailwind utilities;
 
 @layer base {
+  html, body {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
   body {
     @apply bg-[#060913] text-slate-100 antialiased font-sans overflow-x-hidden transition-colors duration-300;
     background-image: 
@@ -198,3 +210,91 @@ body.nexus-light-theme table tr {
 body.nexus-light-theme table tr:hover {
   background-color: #f8fafc !important;
 }
+
+/* ========================================================================= */
+/* BARRE DI SCORRIMENTO GLOBALI ULTRA-SOTTILI ED INVISIBILI (SITO INTERO)   */
+/* ========================================================================= */
+*,
+*:before,
+*:after {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+*:hover {
+  scrollbar-color: rgba(59, 130, 246, 0.45) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+  transition: background-color 0.25s ease;
+}
+
+/* Mostra la barra sottile solo al passaggio del mouse sull'elemento o sulla barra */
+*:hover::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.45);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.85);
+}
+
+body.nexus-light-theme *:hover::-webkit-scrollbar-thumb {
+  background: #94a3b8 !important;
+}
+
+/* Animazione di entrata slide-in da destra per la Notifica AI Guardian */
+@keyframes slideInFromRight {
+  0% {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Animazione di uscita slide-out verso destra per la scomparsa automatica a 5 secondi */
+@keyframes slideOutToRight {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInFromRight 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-out-right {
+  animation: slideOutToRight 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Rimuovi frecce bianche brutte predefinite degli input number del browser */
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+
+

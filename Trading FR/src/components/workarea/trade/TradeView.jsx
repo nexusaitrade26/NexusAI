@@ -5,6 +5,7 @@ import MarketNewsBox from './MarketNewsBox';
 import AIMarketAnalysisBox from './AIMarketAnalysisBox';
 import OrderForm from './OrderForm';
 import OpenPositionsList from '../portfolio/OpenPositionsList';
+import AiPositionGuardianWidget from '../../common/AiPositionGuardianWidget';
 import { fetchApi } from '../../../services/api';
 import { useMarket } from '../../../context/MarketContext';
 import { useTradingStore } from '../../../store/useTradingStore';
@@ -140,8 +141,8 @@ const TradeView = () => {
         />
       </div>
 
-      {/* Registro Posizioni Totali */}
-      <OpenPositionsList isLoading={false} />
+      {/* Registro Posizioni Totali (Mostra Solo Posizioni Aperte nella sezione Trade) */}
+      <OpenPositionsList isLoading={false} showClosed={false} />
     </div>
   );
 };

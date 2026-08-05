@@ -1,7 +1,7 @@
 import Card from '../../common/Card';
 import EmptyState from '../../common/EmptyState';
 
-const ClosedTradesList = ({ trades = [], onUpdateTag, onDeleteTrade }) => {
+const ClosedTradesList = ({ trades = [], onUpdateTag, onDeleteTrade, onClearAll }) => {
   if (!trades || trades.length === 0) {
     return (
       <EmptyState
@@ -15,10 +15,21 @@ const ClosedTradesList = ({ trades = [], onUpdateTag, onDeleteTrade }) => {
 
   return (
     <Card>
-      <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-3">
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-300 font-outfit">
-          Elenco Trade Chiusi nel Diario ({trades.length})
-        </span>
+      <div className="flex flex-wrap justify-between items-center gap-2 mb-4 border-b border-slate-800 pb-3">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-300 font-outfit">
+            Elenco Trade Chiusi nel Diario ({trades.length})
+          </span>
+          {onClearAll && trades.length > 0 && (
+            <button
+              onClick={onClearAll}
+              className="px-3 py-1 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/40 text-xs font-bold transition-all shadow-sm cursor-pointer font-outfit"
+              title="Elimina definitivamente tutto lo storico dei trade chiusi nel Diario"
+            >
+              Elimina Tutto ({trades.length})
+            </button>
+          )}
+        </div>
         <span className="text-[10px] text-slate-400 font-medium">Gestione ed Eliminazione Registro</span>
       </div>
 

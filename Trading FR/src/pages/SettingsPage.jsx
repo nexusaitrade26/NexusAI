@@ -114,7 +114,7 @@ const SettingsPage = ({ currentTheme, onThemeChange }) => {
   };
 
   return (
-    <div className="space-y-6 font-sans">
+    <div className="space-y-6 font-sans pt-4 sm:pt-6">
       <SectionHeader
         title="Impostazioni Piattaforma & Profilo Utente"
         subtitle="Le impostazioni di ogni riquadro sono salvate in modo riservato per l'account attualmente connesso."

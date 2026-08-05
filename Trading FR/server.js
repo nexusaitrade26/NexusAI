@@ -24,6 +24,41 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Nexus AI Real Backend API Server attivo' });
 });
 
+// Memoria Cloud per account ed applicativo sincronizzati tra Web App ed App Smartphone
+let globalRegisteredAccounts = {};
+let globalUserDataStore = {};
+
+// GET /api/sync/accounts - Scarica tutti gli account dal Cloud
+app.get('/api/sync/accounts', (req, res) => {
+  res.json({ accounts: globalRegisteredAccounts });
+});
+
+// POST /api/sync/accounts - Sincronizza ed aggiorna gli account sul Cloud
+app.post('/api/sync/accounts', (req, res) => {
+  const { accounts } = req.body;
+  if (accounts) {
+    globalRegisteredAccounts = { ...globalRegisteredAccounts, ...accounts };
+  }
+  res.json({ success: true, accounts: globalRegisteredAccounts });
+});
+
+// GET /api/sync/user-data/:username - Scarica i dati dello specifico utente (saldo, posizioni, journal)
+app.get('/api/sync/user-data/:username', (req, res) => {
+  const username = req.params.username.toLowerCase();
+  const data = globalUserDataStore[username] || null;
+  res.json({ username, data });
+});
+
+// POST /api/sync/user-data/:username - Salva i dati dello specifico utente sul Cloud
+app.post('/api/sync/user-data/:username', (req, res) => {
+  const username = req.params.username.toLowerCase();
+  const { data } = req.body;
+  if (data) {
+    globalUserDataStore[username] = data;
+  }
+  res.json({ success: true, username, data: globalUserDataStore[username] });
+});
+
 /**
  * 💳 ENDPOINT STRIPE REALE: Crea un PaymentIntent con la chiave segreta Stripe Live
  */

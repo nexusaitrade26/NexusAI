@@ -20,6 +20,10 @@ const FloatingAiAssistant = ({ activeTab = 'dashboard' }) => {
   const positions = useTradingStore((state) => state.positions) || [];
   const closedTrades = useTradingStore((state) => state.closedTrades) || [];
   const balance = useTradingStore((state) => state.balance) || 10000;
+  const activeAiPositionId = useTradingStore((state) => state.activeAiPositionId);
+  const setActiveAiPositionId = useTradingStore((state) => state.setActiveAiPositionId);
+
+  const activePosition = positions.find((p) => p && p.id === activeAiPositionId) || positions[0];
 
   // Calcolo PnL dal vivo
   const openPnl = positions.reduce((acc, p) => {
@@ -197,29 +201,29 @@ const FloatingAiAssistant = ({ activeTab = 'dashboard' }) => {
   return (
     <>
       {/* 1. PULSANTE FLOTTRANTE FISSO IN BASSO A DESTRA (BADGE PICCOLO TONDO "AI") */}
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-5 right-5 z-50">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-black font-outfit text-sm shadow-2xl border border-blue-400/40 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 shadow-liquid-glow"
+          className="w-11 h-11 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-black font-outfit text-xs shadow-2xl border border-blue-400/40 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 shadow-liquid-glow relative"
           title="Nexus AI Assistant"
         >
           AI
         </button>
       </div>
 
-      {/* 2. DRAWER DI CHAT FLOTTRANTE CON CRONOLOGIA & NUOVA CHAT */}
+      {/* 2. DRAWER DI CHAT FLOTTRANTE COMPATTO CON CRONOLOGIA & NUOVA CHAT */}
       {isOpen && (
-        <div className="fixed bottom-20 right-4 sm:right-6 z-50 w-[92vw] sm:w-[420px] h-[520px] bg-[#0b0f19] border border-blue-500/40 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-fade-in font-sans">
+        <div className="fixed bottom-16 right-3 sm:right-6 z-50 w-[88vw] sm:w-[330px] h-[390px] sm:h-[410px] bg-[#0b0f19] border border-blue-500/40 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-fade-in font-sans">
           
           {/* Header Drawer Chat */}
-          <div className="p-4 bg-slate-900/90 border-b border-slate-800 flex justify-between items-center">
+          <div className="p-3 bg-slate-900/90 border-b border-slate-800 flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black font-outfit text-xs shadow-liquid-glow">
+              <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black font-outfit text-[11px] shadow-liquid-glow">
                 AI
               </div>
               <div>
                 <h4 className="font-bold text-xs text-white font-outfit">Nexus AI</h4>
-                <p className="text-[10px] text-blue-400 font-medium truncate max-w-[150px]">
+                <p className="text-[9px] text-blue-400 font-medium truncate max-w-[130px]">
                   {activeTab.toUpperCase()} • {selectedAsset}
                 </p>
               </div>
@@ -229,14 +233,14 @@ const FloatingAiAssistant = ({ activeTab = 'dashboard' }) => {
             <div className="flex items-center gap-1.5">
               <button
                 onClick={handleNewChat}
-                className="px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-[10px] font-bold border border-blue-500/30 transition-all"
+                className="px-2 py-0.5 rounded-md bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-[10px] font-bold border border-blue-500/30 transition-all"
               >
-                Nuova Chat
+                Nuova
               </button>
 
               <button
                 onClick={() => setShowHistory(!showHistory)}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-all ${
                   showHistory
                     ? 'bg-blue-600 text-white border-blue-500'
                     : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
@@ -247,9 +251,9 @@ const FloatingAiAssistant = ({ activeTab = 'dashboard' }) => {
 
               <button
                 onClick={() => setIsOpen(false)}
-                className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-rose-600/30 text-slate-400 hover:text-rose-300 font-bold flex items-center justify-center text-xs transition-all"
+                className="w-6 h-6 rounded-md bg-slate-800 hover:bg-rose-600/30 text-slate-400 hover:text-rose-300 font-bold flex items-center justify-center text-xs transition-all"
               >
-                ✕
+                X
               </button>
             </div>
           </div>

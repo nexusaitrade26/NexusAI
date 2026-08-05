@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMarket } from '../../context/MarketContext';
 import { useTradingStore } from '../../store/useTradingStore';
 import { getActiveUserSession, TRIAL_DURATION_SECONDS } from '../../services/accountStorage';
@@ -7,6 +7,7 @@ import SubscriptionModal from '../subscription/SubscriptionModal';
 const Header = () => {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [showNotifSettings, setShowNotifSettings] = useState(false);
+  const notifRef = useRef(null);
 
   // Stato Utente Attivo & Timer Prova 5 minuti
   const [activeUser, setActiveUser] = useState(() => getActiveUserSession());
@@ -24,6 +25,17 @@ const Header = () => {
   const openPositions = useTradingStore((state) => state.positions) || [];
   const closedTrades = useTradingStore((state) => state.closedTrades) || [];
   const notifications = useTradingStore((state) => state.notifications) || [];
+
+  // Chiusura automatica del pannello notifiche se si clicca in qualsiasi altra parte dello schermo (Click Outside)
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notifRef.current && !notifRef.current.contains(event.target)) {
+        setIsNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Monitoraggio Timer Prova Gratuita 5 minuti
   useEffect(() => {
@@ -104,33 +116,78 @@ const Header = () => {
     return () => clearInterval(interval);
   }, [getLivePrice, notifSettings.marketAi]);
 
-  // Elimina singola notifica
+  // Elimina singola notifica (non elimina notifiche di posizioni aperte)
   const handleDeleteNotification = (notifId) => {
     useTradingStore.setState((state) => ({
-      notifications: (state.notifications || []).filter((n) => n.id !== notifId)
+      notifications: (state.notifications || []).filter((n) => {
+        if (n.id === notifId) {
+          // Impedisci eliminazione se è per una posizione ancora aperta
+          return (state.positions || []).some((p) => p.id === n.positionId);
+        }
+        return true;
+      })
     }));
   };
 
-  // Cancella tutte le notifiche
+  // Cancella tutte le notifiche di sistema, ma mantieni sempre quelle delle posizioni ancora aperte
   const handleClearAllNotifications = () => {
-    useTradingStore.setState({ notifications: [] });
+    useTradingStore.setState((state) => ({
+      notifications: (state.notifications || []).filter((n) =>
+        (state.positions || []).some((p) => p.id === n.positionId)
+      )
+    }));
   };
 
-  // Filtra notifiche in base ai toggle impostati dall'utente
-  const filteredNotifications = notifications.filter((n) => {
+  // Assicurati che ogni posizione aperta abbia SEMPRE la sua notifica presente nel pannello
+  const openPosNotifs = openPositions.map((pos) => {
+    const existing = notifications.find((n) => n.positionId === pos.id && (n.type === 'POSIZIONE APERTA' || n.type === 'COPY TRADING'));
+    if (existing) return existing;
+    return {
+      id: `open-pos-${pos.id}`,
+      type: 'POSIZIONE APERTA',
+      positionId: pos.id,
+      message: `Nuova operazione ${pos.side} aperta su ${pos.asset} a $${pos.entryPrice} (${pos.quantity} Lotti)`
+    };
+  });
+
+  const otherNotifs = notifications.filter((n) =>
+    !openPositions.some((p) => p.id === n.positionId && (n.type === 'POSIZIONE APERTA' || n.type === 'COPY TRADING'))
+  );
+
+  const allNotifs = [...openPosNotifs, ...otherNotifs];
+
+  const filteredNotifications = allNotifs.filter((n) => {
     if (n.type === 'COPY TRADING' && !notifSettings.copyTrading) return false;
     if (n.type === 'AI OPPORTUNITÀ' && !notifSettings.marketAi) return false;
     if (n.category === 'capitalRisk' && !notifSettings.capitalRisk) return false;
     return true;
   });
 
+  const isSubNavFixed = useTradingStore((state) => state.isSubNavFixed);
+  const toggleSubNavFixed = useTradingStore((state) => state.toggleSubNavFixed);
+
   return (
     <>
       <header className="h-14 glass-panel border-b border-slate-800/80 px-3 sm:px-6 flex items-center justify-between select-none z-20 overflow-visible relative font-sans">
-        {/* Market Ticker Live con aggiornamento prezzi in tempo reale (PULITO SENZA BADGE PRO QUI) */}
+        {/* Market Ticker Live con aggiornamento prezzi in tempo reale */}
         <div className="flex items-center gap-3 sm:gap-6 overflow-x-auto no-scrollbar py-1">
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={toggleSubNavFixed}
+              title={isSubNavFixed ? "Sottomenu Fisso - Clicca la freccia su per sbloccare" : "Sottomenu Normale - Clicca la freccia giù per fissare in alto"}
+              className="p-1 rounded-lg hover:bg-slate-800/80 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center justify-center"
+            >
+              {isSubNavFixed ? (
+                <svg className="w-3.5 h-3.5 stroke-current text-blue-400" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5 stroke-current text-slate-400 hover:text-white" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              )}
+            </button>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold uppercase tracking-wider font-outfit">LIVE</span>
             <span className="font-outfit font-extrabold text-[11px] sm:text-xs tracking-wider text-blue-400">NEXUS ENGINE</span>
           </div>
           
@@ -160,7 +217,7 @@ const Header = () => {
           </div>
         </div>
 
-        {/* Riquadro Destra: WIDGET TIMER PROVA GRATUITA (MOSTRATO SOLO SE IN TRIAL) + GUADAGNO NETTO + CAMPANELLA */}
+        {/* Riquadro Destra: WIDGET TIMER PROVA GRATUITA + GUADAGNO NETTO + CAMPANELLA */}
         <div className="flex items-center gap-2.5 shrink-0 ml-2 relative">
           
           {/* WIDGET TIMER MOSTRATO SOLO SE L'UTENTE È IN PROVA GRATUITA */}
@@ -188,19 +245,23 @@ const Header = () => {
             </strong>
           </div>
 
-          {/* CAMPANELLA NOTIFICHE LIVE */}
-          <div className="relative">
+          {/* CAMPANELLA NOTIFICHE LIVE CON CHIUSURA CLICK OUTSIDE E ICONA X QUANDO APERTO */}
+          <div className="relative" ref={notifRef}>
             <button
               onClick={() => setIsNotifOpen(!isNotifOpen)}
-              className="w-9 h-9 rounded-full bg-slate-900/90 border border-slate-800 hover:border-blue-500/40 text-slate-300 hover:text-blue-400 flex items-center justify-center transition-all relative group"
-              title="Centro Notifiche Copy Trading & AI Opportunities"
+              className="w-9 h-9 rounded-full bg-slate-900/90 border border-slate-800 hover:border-blue-500/40 text-slate-300 hover:text-blue-400 flex items-center justify-center transition-all relative group font-mono font-bold"
+              title={isNotifOpen ? "Chiudi Notifiche" : "Centro Notifiche"}
             >
-              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
-              </svg>
+              {isNotifOpen ? (
+                <span className="text-xs text-slate-200">X</span>
+              ) : (
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                  <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+                </svg>
+              )}
 
-              {filteredNotifications.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-600 text-white font-black text-[9px] flex items-center justify-center animate-pulse border border-slate-950">
+              {!isNotifOpen && filteredNotifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-600 text-white font-black text-[9px] flex items-center justify-center animate-pulse border border-slate-950 font-mono">
                   {filteredNotifications.length}
                 </span>
               )}
@@ -221,7 +282,7 @@ const Header = () => {
                       onClick={() => setShowNotifSettings(!showNotifSettings)}
                       className="text-[10px] text-slate-400 hover:text-blue-400 font-medium underline"
                     >
-                      {showNotifSettings ? 'Chiudi Filtri' : '⚙️ Filtri'}
+                      {showNotifSettings ? 'Chiudi Filtri' : 'Filtri'}
                     </button>
                     {filteredNotifications.length > 0 && (
                       <button
@@ -239,7 +300,7 @@ const Header = () => {
                   <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2 text-xs">
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Filtra categorie di avvisi:</p>
                     <label className="flex items-center justify-between cursor-pointer text-slate-300">
-                      <span>Copy Trading</span>
+                      <span>Posizioni Aperte</span>
                       <input
                         type="checkbox"
                         checked={notifSettings.copyTrading}
@@ -275,34 +336,60 @@ const Header = () => {
                       Nessuna nuova notifica presente.
                     </p>
                   ) : (
-                    filteredNotifications.map((notif) => (
-                      <div
-                        key={notif.id}
-                        className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800/80 flex items-start justify-between gap-2 group hover:border-slate-700"
-                      >
-                        <div className="space-y-0.5 flex-1 min-w-0">
-                          <span className={`text-[9px] font-bold uppercase tracking-wider block ${
-                            notif.type === 'AI OPPORTUNITÀ'
-                              ? 'text-blue-400'
-                              : notif.type === 'COPY TRADING'
-                              ? 'text-purple-400'
-                              : 'text-emerald-400'
-                          }`}>
-                            {notif.type || 'SISTEMA'}
-                          </span>
-                          <p className="text-slate-200 text-[11px] leading-snug break-words">
-                            {notif.message}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteNotification(notif.id)}
-                          className="text-slate-500 hover:text-rose-400 p-1 font-bold text-xs"
-                          title="Elimina notifica"
+                    filteredNotifications.map((notif) => {
+                      const isOpenPosNotif = openPositions.some((p) => p && (p.id === notif.positionId || notif.type === 'POSIZIONE APERTA'));
+                      const isPosAlert = notif.type === 'POSIZIONE APERTA' || notif.type === 'COPY TRADING' || notif.positionId;
+                      return (
+                        <div
+                          key={notif.id}
+                          className="p-3 rounded-xl bg-slate-900/80 border border-slate-800/80 flex items-start justify-between gap-2 group hover:border-slate-700"
                         >
-                          ✕
-                        </button>
-                      </div>
-                    ))
+                          <div className="space-y-1 flex-1 min-w-0">
+                            <span className={`text-[10px] font-bold uppercase tracking-wider block font-outfit ${
+                              notif.type === 'POSIZIONE APERTA' || notif.type === 'COPY TRADING'
+                                ? 'text-emerald-400'
+                                : notif.type === 'POSIZIONE CHIUSA'
+                                ? 'text-rose-400'
+                                : notif.type === 'AI OPPORTUNITÀ'
+                                ? 'text-blue-400'
+                                : 'text-purple-400'
+                            }`}>
+                              {notif.type || 'SISTEMA'}
+                            </span>
+                            <p className="text-slate-200 text-[11px] leading-snug break-words">
+                              {notif.message}
+                            </p>
+
+                            {/* Pulsante Widget MOSTRATO ESCLUSIVAMENTE PER POSIZIONI APERTE (Riapre e fissa il widget sul lato destro) */}
+                            {isOpenPosNotif && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const targetPos = openPositions.find((p) => p && p.id === notif.positionId) || openPositions[0];
+                                  if (targetPos) {
+                                    useTradingStore.getState().setActiveAiPositionId(targetPos.id);
+                                    useTradingStore.getState().setWidgetModeForPosition(targetPos.id, 'widget');
+                                    setIsNotifOpen(false);
+                                  }
+                                }}
+                                className="inline-block mt-2 px-3 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 text-[10px] font-bold transition-all font-outfit shadow-sm cursor-pointer"
+                              >
+                                Widget
+                              </button>
+                            )}
+                          </div>
+                          {!isOpenPosNotif && (
+                            <button
+                              onClick={() => handleDeleteNotification(notif.id)}
+                              className="text-slate-500 hover:text-rose-400 p-1 font-bold text-xs"
+                              title="Elimina notifica"
+                            >
+                              X
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               </div>

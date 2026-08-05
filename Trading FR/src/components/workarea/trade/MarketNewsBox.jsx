@@ -29,15 +29,15 @@ const MarketNewsBox = ({ isLoading = false, newsData = null, selectedAsset = 'BT
             <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
               Notizie di mercato
             </span>
-            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-bold text-emerald-400 animate-pulse">
-              Live Feed
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-bold text-emerald-400 uppercase tracking-wider font-outfit">
+              LIVE
             </span>
           </div>
           <span className="text-[10px] text-slate-400 font-medium">Asset: {selectedAsset}</span>
         </div>
 
         {/* Flusso di Notizie Cliccabili */}
-        <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+        <div className="space-y-3 max-h-[380px] overflow-y-auto custom-scrollbar pr-2">
           {newsList.length === 0 ? (
             <p className="text-xs text-slate-400">Nessuna notizia recente per {selectedAsset}.</p>
           ) : (

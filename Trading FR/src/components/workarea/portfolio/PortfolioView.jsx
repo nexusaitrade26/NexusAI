@@ -3,6 +3,7 @@ import SectionHeader from '../../common/SectionHeader';
 import RiskScoreGauge from './RiskScoreGauge';
 import ExposureBreakdown from './ExposureBreakdown';
 import OpenPositionsList from './OpenPositionsList';
+import AiPositionGuardianWidget from '../../common/AiPositionGuardianWidget';
 import Card from '../../common/Card';
 import { useMarket } from '../../../context/MarketContext';
 import { useTradingStore } from '../../../store/useTradingStore';
