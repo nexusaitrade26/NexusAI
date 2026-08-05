@@ -362,21 +362,36 @@ export const fetchUserAppData = async (username) => {
   return getUserAppData(username);
 };
 
-// SALVA E SINCRONIZZA I DATI DI TRADING (POSIZIONI, BILANCIO, CHAT, NOTIFICHE) SUL CLOUD SERVER H24
-export const saveUserAppData = (username, dataObj) => {
+// SALVA E SINCRONIZZA I DATI DI TRADING (POSIZIONI, BILANCIO, CHAT, NOTIFICHE) SUL CLOUD SERVER H24 IN TEMPO REALE
+export const saveUserAppData = async (username, dataObj) => {
   if (!username) return;
   const lowerUser = username.trim().toLowerCase();
-  const key = `nexus_user_data_${lowerUser}`;
+  const userAppDataKey = `nexus_user_data_${lowerUser}`;
   
-  // Salva in localStorage locale
-  localStorage.setItem(key, JSON.stringify(dataObj));
+  // 1. Salva in localStorage locale per risposta ultra-rapida dell'interfaccia
+  localStorage.setItem(userAppDataKey, JSON.stringify(dataObj));
 
-  // Inietta appData nell'account e sincronizza sul Cloud Server H24
-  const accounts = getRegisteredAccounts();
-  const accKey = Object.keys(accounts).find(k => accounts[k] && accounts[k].username && accounts[k].username.trim().toLowerCase() === lowerUser);
-  if (accKey && accounts[accKey]) {
-    accounts[accKey].appData = dataObj;
-    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
-    pushCloudAccounts(accounts);
+  // 2. Recupera l'elenco account e garantisce la presenza della chiave per l'utente attivo
+  const localAccounts = getRegisteredAccounts();
+  let accounts = { ...localAccounts };
+  
+  const activeUser = getActiveUserSession();
+  let accKey = Object.keys(accounts).find(k => accounts[k] && accounts[k].username && accounts[k].username.trim().toLowerCase() === lowerUser);
+
+  if (!accKey || !accounts[accKey]) {
+    const userToSave = (activeUser && activeUser.username && activeUser.username.trim().toLowerCase() === lowerUser)
+      ? activeUser
+      : { id: `usr_${Date.now()}`, username: username.trim(), email: `${lowerUser}@nexus.ai` };
+    accounts[lowerUser] = { ...userToSave, appData: dataObj };
+    accKey = lowerUser;
+  } else {
+    accounts[accKey] = {
+      ...accounts[accKey],
+      appData: dataObj
+    };
   }
+
+  // 3. Salva la mappa aggiornata in locale e sincronizza al Cloud DB H24 senza perdere mai dati pregressi
+  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+  await pushCloudAccounts(accounts);
 };
