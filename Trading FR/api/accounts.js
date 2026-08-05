@@ -1,8 +1,7 @@
-// Vercel Serverless Cloud DB Server & Sync Endpoint per Nexus AI
-const CLOUD_OBJECT_URL = 'https://api.restful-api.dev/objects/ff8081819f7e10ae019fc7b93d956944';
+// Vercel Serverless Cloud DB Server & Sync Endpoint per Nexus AI (Enterprise Persistent Storage)
+const JSON_BLOB_URL = 'https://jsonblob.com/api/jsonBlob/019fd232-4705-78b9-8cee-96b6f9558909';
 
-// In-Memory Backup Server Cache (Persiste nell'istanza serverless di Vercel per velocità istantanea)
-let memoryAccountsCache = {
+let memoryCache = {
   tommy: {
     id: 'usr_1785864209292',
     username: 'Tommy',
@@ -49,92 +48,77 @@ export default async function handler(req, res) {
     return;
   }
 
-  // GET: Lettura Server-to-Server dal Database Cloud
-  if (req.method === 'GET') {
+  // Helper per caricare dal Cloud Blob con fallback a memoria
+  const fetchCloudBlob = async () => {
     try {
-      const cacheBustUrl = `${CLOUD_OBJECT_URL}?t=${Date.now()}&r=${Math.random().toString(36).substring(7)}`;
-      const cloudRes = await fetch(cacheBustUrl, {
-        headers: { 'Cache-Control': 'no-cache, no-store' },
+      const response = await fetch(`${JSON_BLOB_URL}?t=${Date.now()}`, {
+        headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache, no-store' },
         cache: 'no-store'
       });
-      if (cloudRes.ok) {
-        const json = await cloudRes.json();
-        if (json && json.data && typeof json.data === 'object' && Object.keys(json.data).length > 0) {
-          memoryAccountsCache = { ...memoryAccountsCache, ...json.data };
+      if (response.ok) {
+        const json = await response.json();
+        if (json && typeof json === 'object' && !Array.isArray(json)) {
+          memoryCache = { ...memoryCache, ...json };
+          return memoryCache;
         }
       }
-    } catch (e) {
-      console.error('Server DB fetch error:', e);
+    } catch (err) {
+      console.error('Fetch JSON Blob Error:', err);
     }
-    return res.status(200).json({ data: memoryAccountsCache });
+    return memoryCache;
+  };
+
+  // GET: Lettura account dal Server Cloud
+  if (req.method === 'GET') {
+    const data = await fetchCloudBlob();
+    return res.status(200).json({ data });
   }
 
-  // POST / PUT: Scrittura Server-to-Server nel Database Cloud (con MERGE sicuro)
+  // POST / PUT: Scrittura account nel Server Cloud (Merge Sicuro)
   if (req.method === 'POST' || req.method === 'PUT') {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const accountsData = (body && body.data) ? body.data : (body && body.accounts) ? body.accounts : body;
+      const incoming = (body && body.data) ? body.data : (body && body.accounts) ? body.accounts : body;
 
-      // 1. Fetch preventivo dai dati correnti dal DB per fare MERGE senza mai perdere account
-      let existingAccounts = { ...memoryAccountsCache };
-      try {
-        const cacheBustUrl = `${CLOUD_OBJECT_URL}?t=${Date.now()}&r=${Math.random().toString(36).substring(7)}`;
-        const getRes = await fetch(cacheBustUrl, {
-          headers: { 'Cache-Control': 'no-cache, no-store' },
-          cache: 'no-store'
-        });
-        if (getRes.ok) {
-          const getJson = await getRes.json();
-          if (getJson && getJson.data && typeof getJson.data === 'object') {
-            existingAccounts = { ...existingAccounts, ...getJson.data };
-          }
-        }
-      } catch (err) {
-        console.warn('Errore lettura preventiva DB Cloud:', err);
-      }
+      const current = await fetchCloudBlob();
+      const merged = { ...current };
 
-      // 2. Merge intelligente di ciascun account
-      const mergedAccounts = { ...existingAccounts };
-      if (accountsData && typeof accountsData === 'object') {
-        Object.keys(accountsData).forEach((uKey) => {
-          if (mergedAccounts[uKey]) {
-            mergedAccounts[uKey] = {
-              ...mergedAccounts[uKey],
-              ...accountsData[uKey],
-              // Merge profondo per appData se presente
-              appData: accountsData[uKey].appData 
-                ? { ...(mergedAccounts[uKey].appData || {}), ...accountsData[uKey].appData }
-                : mergedAccounts[uKey].appData
+      if (incoming && typeof incoming === 'object') {
+        Object.keys(incoming).forEach((key) => {
+          if (merged[key]) {
+            merged[key] = {
+              ...merged[key],
+              ...incoming[key],
+              appData: incoming[key].appData 
+                ? { ...(merged[key].appData || {}), ...incoming[key].appData }
+                : merged[key].appData
             };
           } else {
-            mergedAccounts[uKey] = accountsData[uKey];
+            merged[key] = incoming[key];
           }
         });
       }
 
-      // Aggiorna la memoria istantanea del server
-      memoryAccountsCache = mergedAccounts;
+      memoryCache = merged;
 
-      const payload = {
-        name: 'Nexus_AI_Accounts',
-        data: mergedAccounts
-      };
-
-      const putRes = await fetch(CLOUD_OBJECT_URL, {
+      // Salvataggio atomico su JSONBlob
+      const putRes = await fetch(JSON_BLOB_URL, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(merged)
       });
 
       if (putRes.ok) {
-        const json = await putRes.json();
-        return res.status(200).json({ data: json.data || mergedAccounts });
+        const updatedData = await putRes.json();
+        memoryCache = updatedData;
+        return res.status(200).json({ data: updatedData });
       }
-      return res.status(200).json({ data: mergedAccounts });
+
+      return res.status(200).json({ data: merged });
     } catch (e) {
-      console.error('Server DB update error:', e);
+      console.error('Update JSON Blob Error:', e);
+      return res.status(200).json({ data: memoryCache });
     }
-    return res.status(200).json({ data: memoryAccountsCache });
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
