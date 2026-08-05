@@ -60,8 +60,11 @@ export default async function handler(req, res) {
   // Helper per caricare dal Cloud Blob con fallback a memoria
   const fetchCloudBlob = async () => {
     try {
-      const response = await fetch(`${JSON_BLOB_URL}?t=${Date.now()}`, {
-        headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache, no-store' },
+      const response = await fetch(JSON_BLOB_URL, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
         cache: 'no-store'
       });
       if (response.ok) {
@@ -110,10 +113,14 @@ export default async function handler(req, res) {
 
       memoryCache = merged;
 
-      // Salvataggio atomico su JSONBlob
+      // Salvataggio atomico su JSONBlob con User-Agent
       const putRes = await fetch(JSON_BLOB_URL, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
         body: JSON.stringify(merged)
       });
 
