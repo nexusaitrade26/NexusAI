@@ -82,21 +82,67 @@ export const useTradingStore = create((set, get) => {
       }
     },
 
-    // Sincronizza lo stato in tempo reale dal Cloud Server H24
+    // Sincronizza lo stato in tempo reale dal Cloud Server H24 con MERGE a prova di perdita
     syncActiveUserStoreFromCloud: async () => {
       const activeUser = getActiveUserSession();
-      if (activeUser && activeUser.username) {
-        const data = await fetchUserAppData(activeUser.username);
-        if (data) {
-          set({
-            balance: data.balance ?? 10000.0,
-            positions: data.positions || [],
-            closedTrades: data.closedTrades || [],
-            notifications: data.notifications || [],
-            chatSessions: data.chatSessions || []
-          });
-        }
-      }
+      if (!activeUser || !activeUser.username) return;
+
+      const cloudData = await fetchUserAppData(activeUser.username);
+      if (!cloudData) return;
+
+      const currentState = get();
+
+      // 1. Merge Intelligente Posizioni Aperte (per ID unico, preservando le posizioni locali e quelle cloud)
+      const localPositions = currentState.positions || [];
+      const cloudPositions = cloudData.positions || [];
+      const positionMap = new Map();
+
+      cloudPositions.forEach(p => { if (p && p.id) positionMap.set(p.id, p); });
+      localPositions.forEach(p => { if (p && p.id) positionMap.set(p.id, p); });
+      const mergedPositions = Array.from(positionMap.values());
+
+      // 2. Merge Intelligente Trade Chiusi (per ID unico)
+      const localClosed = currentState.closedTrades || [];
+      const cloudClosed = cloudData.closedTrades || [];
+      const closedMap = new Map();
+
+      cloudClosed.forEach(t => { if (t && t.id) closedMap.set(t.id, t); });
+      localClosed.forEach(t => { if (t && t.id) closedMap.set(t.id, t); });
+      const mergedClosed = Array.from(closedMap.values());
+
+      // 3. Merge Intelligente Chat Sessions (per ID unico)
+      const localChat = currentState.chatSessions || [];
+      const cloudChat = cloudData.chatSessions || [];
+      const chatMap = new Map();
+
+      cloudChat.forEach(c => { if (c && c.id) chatMap.set(c.id, c); });
+      localChat.forEach(c => { if (c && c.id) chatMap.set(c.id, c); });
+      const mergedChat = Array.from(chatMap.values());
+
+      // 4. Merge Intelligente Notifiche (per ID unico)
+      const localNotifs = currentState.notifications || [];
+      const cloudNotifs = cloudData.notifications || [];
+      const notifMap = new Map();
+
+      cloudNotifs.forEach(n => { if (n && n.id) notifMap.set(n.id, n); });
+      localNotifs.forEach(n => { if (n && n.id) notifMap.set(n.id, n); });
+      const mergedNotifs = Array.from(notifMap.values());
+
+      // 5. Bilancio
+      const mergedBalance = cloudData.balance != null ? cloudData.balance : currentState.balance;
+
+      const mergedState = {
+        balance: mergedBalance,
+        positions: mergedPositions,
+        closedTrades: mergedClosed,
+        notifications: mergedNotifs,
+        chatSessions: mergedChat
+      };
+
+      set(mergedState);
+
+      // Salva lo stato fuso per garantire la sincronizzazione Cloud H24
+      saveUserAppData(activeUser.username, mergedState);
     },
 
     // Aggiorna Stop Loss e Take Profit per una posizione specifica via consiglio AI
