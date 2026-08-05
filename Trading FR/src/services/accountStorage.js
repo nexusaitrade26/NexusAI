@@ -3,8 +3,48 @@
 const ACCOUNTS_KEY = 'nexus_registered_accounts';
 const ACTIVE_USER_KEY = 'nexus_active_user_session';
 
-// Endpoint Server API HTTPS Globale attivo h24 su Vercel Cloud Server
-const SERVER_ACCOUNTS_API = 'https://nexus-ai-eight-flax.vercel.app/api/accounts';
+// Endpoint Server API HTTPS Globale attivo h24 su JSONBlob Direct Cloud DB
+const SERVER_ACCOUNTS_API = 'https://jsonblob.com/api/jsonBlob/019fd26c-ffbe-716d-9155-6c737d3bc08c';
+
+// Helper per il merge profondo di appData (posizioni, trade chiusi, notifiche, chat)
+const mergeAppData = (existing = {}, incoming = {}) => {
+  if (!incoming && !existing) return { balance: 10000.0, positions: [], closedTrades: [], chatSessions: [], notifications: [] };
+  if (!incoming) return existing;
+  if (!existing) return incoming;
+
+  const closedIds = new Set([
+    ...(existing.closedTrades || []).map(t => t && (t.positionId || t.id)),
+    ...(incoming.closedTrades || []).map(t => t && (t.positionId || t.id))
+  ]);
+
+  const posMap = new Map();
+  (existing.positions || []).forEach(p => {
+    if (p && p.id && !closedIds.has(p.id)) posMap.set(p.id, p);
+  });
+  (incoming.positions || []).forEach(p => {
+    if (p && p.id && !closedIds.has(p.id)) posMap.set(p.id, p);
+  });
+
+  const closedMap = new Map();
+  (existing.closedTrades || []).forEach(t => { if (t && t.id) closedMap.set(t.id, t); });
+  (incoming.closedTrades || []).forEach(t => { if (t && t.id) closedMap.set(t.id, t); });
+
+  const chatMap = new Map();
+  (existing.chatSessions || []).forEach(c => { if (c && c.id) chatMap.set(c.id, c); });
+  (incoming.chatSessions || []).forEach(c => { if (c && c.id) chatMap.set(c.id, c); });
+
+  const notifMap = new Map();
+  (existing.notifications || []).forEach(n => { if (n && n.id) notifMap.set(n.id, n); });
+  (incoming.notifications || []).forEach(n => { if (n && n.id) notifMap.set(n.id, n); });
+
+  return {
+    balance: incoming.balance != null ? incoming.balance : (existing.balance ?? 10000.0),
+    positions: Array.from(posMap.values()),
+    closedTrades: Array.from(closedMap.values()),
+    chatSessions: Array.from(chatMap.values()),
+    notifications: Array.from(notifMap.values())
+  };
+};
 
 // Durata della prova gratuita per ogni nuovo account (5 minuti = 300 secondi)
 export const TRIAL_DURATION_SECONDS = 300; 
@@ -20,12 +60,14 @@ export const notifyUserUpdated = () => {
 // Scarica gli account aggiornati dal Server Cloud in tempo reale per Web ed Android WebView Native App
 export const fetchCloudAccounts = async () => {
   try {
-    const res = await fetch(`${SERVER_ACCOUNTS_API}?t=${Date.now()}`);
+    const res = await fetch(`${SERVER_ACCOUNTS_API}?t=${Date.now()}`, {
+      headers: { 'Accept': 'application/json' }
+    });
     if (res.ok) {
       const json = await res.json();
-      if (json && json.data && typeof json.data === 'object') {
-        localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(json.data));
-        return json.data;
+      if (json && typeof json === 'object' && !Array.isArray(json)) {
+        localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(json));
+        return json;
       }
     }
   } catch (e) {
@@ -34,29 +76,45 @@ export const fetchCloudAccounts = async () => {
   return getRegisteredAccounts();
 };
 
-// Invia l'elenco aggiornato degli account al Server Cloud h24 (con Merge preventivo)
+// Invia l'elenco aggiornato degli account al Server Cloud h24 (con Merge profondo a prova di perdita)
 export const pushCloudAccounts = async (accountsObj) => {
   try {
-    // Fetch preventivo dal Server Cloud per non perdere mai altri account registrati
     let currentCloud = {};
     try {
-      const res = await fetch(`${SERVER_ACCOUNTS_API}?t=${Date.now()}`);
+      const res = await fetch(`${SERVER_ACCOUNTS_API}?t=${Date.now()}`, {
+        headers: { 'Accept': 'application/json' }
+      });
       if (res.ok) {
         const json = await res.json();
-        if (json && json.data && typeof json.data === 'object') {
-          currentCloud = json.data;
+        if (json && typeof json === 'object' && !Array.isArray(json)) {
+          currentCloud = json;
         }
       }
     } catch (err) {
       // ignore
     }
 
-    const merged = { ...currentCloud, ...(accountsObj || {}) };
+    const merged = { ...currentCloud };
+    if (accountsObj && typeof accountsObj === 'object') {
+      Object.keys(accountsObj).forEach(key => {
+        if (merged[key]) {
+          merged[key] = {
+            ...merged[key],
+            ...accountsObj[key],
+            appData: (accountsObj[key].appData || merged[key].appData)
+              ? mergeAppData(merged[key].appData, accountsObj[key].appData)
+              : merged[key].appData
+          };
+        } else {
+          merged[key] = accountsObj[key];
+        }
+      });
+    }
 
     await fetch(SERVER_ACCOUNTS_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: merged })
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(merged)
     });
   } catch (e) {
     console.warn('Errore invio dati al Server Cloud:', e);
