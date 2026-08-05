@@ -1,36 +1,45 @@
 // Vercel Serverless Cloud DB Server & Sync Endpoint per Nexus AI (Enterprise Persistent Storage)
 const JSON_BLOB_URL = 'https://jsonblob.com/api/jsonBlob/019fd232-4705-78b9-8cee-96b6f9558909';
 
-let memoryCache = {
-  tommy: {
-    id: 'usr_1785864209292',
-    username: 'Tommy',
-    email: 'Tommy@gmail.com',
-    password: 'Tommy123',
-    gender: 'Maschile',
-    age: 23,
-    experience: 'Intermedio (1-3 Anni)',
-    preferredAsset: 'Crypto & Forex',
-    theme: 'dark',
-    currency: 'USD ($)',
-    defaultLot: '1.0',
-    defaultSlPct: '3.0',
-    defaultTpPct: '6.0',
-    soundOrderExec: true,
-    soundSlTp: true,
-    notifMarketAi: true,
-    notifCopyTrading: true,
-    notifCapitalRisk: true,
-    createdAt: '2026-08-04T17:23:29.292Z',
-    trialStartedAt: '2026-08-04T17:23:29.292Z',
-    subscription: {
-      active: true,
-      plan: 'Piano Trimestrale',
-      paymentMethod: 'PayPal Checkout',
-      activatedAt: '2026-08-04T17:23:36.059Z',
-      expiresAtFormatted: '04/11/2026'
-    }
-  }
+let memoryCache = null;
+
+// Helper per il merge profondo di appData (posizioni, trade chiusi, notifiche, chat)
+const mergeAppData = (existing = {}, incoming = {}) => {
+  if (!incoming) return existing || {};
+  if (!existing) return incoming || {};
+
+  const closedIds = new Set([
+    ...(existing.closedTrades || []).map(t => t && (t.positionId || t.id)),
+    ...(incoming.closedTrades || []).map(t => t && (t.positionId || t.id))
+  ]);
+
+  const posMap = new Map();
+  (existing.positions || []).forEach(p => {
+    if (p && p.id && !closedIds.has(p.id)) posMap.set(p.id, p);
+  });
+  (incoming.positions || []).forEach(p => {
+    if (p && p.id && !closedIds.has(p.id)) posMap.set(p.id, p);
+  });
+
+  const closedMap = new Map();
+  (existing.closedTrades || []).forEach(t => { if (t && t.id) closedMap.set(t.id, t); });
+  (incoming.closedTrades || []).forEach(t => { if (t && t.id) closedMap.set(t.id, t); });
+
+  const chatMap = new Map();
+  (existing.chatSessions || []).forEach(c => { if (c && c.id) chatMap.set(c.id, c); });
+  (incoming.chatSessions || []).forEach(c => { if (c && c.id) chatMap.set(c.id, c); });
+
+  const notifMap = new Map();
+  (existing.notifications || []).forEach(n => { if (n && n.id) notifMap.set(n.id, n); });
+  (incoming.notifications || []).forEach(n => { if (n && n.id) notifMap.set(n.id, n); });
+
+  return {
+    balance: incoming.balance != null ? incoming.balance : (existing.balance ?? 10000.0),
+    positions: Array.from(posMap.values()),
+    closedTrades: Array.from(closedMap.values()),
+    chatSessions: Array.from(chatMap.values()),
+    notifications: Array.from(notifMap.values())
+  };
 };
 
 export default async function handler(req, res) {
@@ -58,14 +67,14 @@ export default async function handler(req, res) {
       if (response.ok) {
         const json = await response.json();
         if (json && typeof json === 'object' && !Array.isArray(json)) {
-          memoryCache = { ...memoryCache, ...json };
+          memoryCache = { ...(memoryCache || {}), ...json };
           return memoryCache;
         }
       }
     } catch (err) {
       console.error('Fetch JSON Blob Error:', err);
     }
-    return memoryCache;
+    return memoryCache || {};
   };
 
   // GET: Lettura account dal Server Cloud
@@ -89,8 +98,8 @@ export default async function handler(req, res) {
             merged[key] = {
               ...merged[key],
               ...incoming[key],
-              appData: incoming[key].appData 
-                ? { ...(merged[key].appData || {}), ...incoming[key].appData }
+              appData: (incoming[key].appData || merged[key].appData)
+                ? mergeAppData(merged[key].appData, incoming[key].appData)
                 : merged[key].appData
             };
           } else {
@@ -117,7 +126,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ data: merged });
     } catch (e) {
       console.error('Update JSON Blob Error:', e);
-      return res.status(200).json({ data: memoryCache });
+      return res.status(200).json({ data: memoryCache || {} });
     }
   }
 
