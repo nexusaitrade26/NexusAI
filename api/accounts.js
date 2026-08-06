@@ -42,6 +42,34 @@ const DEFAULT_ACCOUNTS = {
 
 let memoryCache = { ...DEFAULT_ACCOUNTS };
 
+async function loadFromBlob() {
+  try {
+    const res = await fetch(JSON_BLOB_URL, {
+      headers: { 'Accept': 'application/json' }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        memoryCache = { ...DEFAULT_ACCOUNTS, ...data };
+      }
+    }
+  } catch (e) {
+    // fallback cache in memoria
+  }
+}
+
+async function saveToBlob(data) {
+  try {
+    await fetch(JSON_BLOB_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  } catch (e) {
+    // fallback cache in memoria
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -54,6 +82,8 @@ export default async function handler(req, res) {
     return;
   }
 
+  await loadFromBlob();
+
   let body = req.body;
   if (typeof body === 'string') {
     try { body = JSON.parse(body); } catch (e) {}
@@ -61,7 +91,6 @@ export default async function handler(req, res) {
     try { body = JSON.parse(body.toString('utf-8')); } catch (e) {}
   }
 
-  // DIAGNOSTIC ECHO
   if (req.method === 'POST' || req.method === 'PUT') {
     const action = body ? body.action : null;
     const query = body ? (body.query || body.usernameOrEmail) : null;
@@ -77,10 +106,10 @@ export default async function handler(req, res) {
       );
 
       if (!found) {
-        return res.status(404).json({ error: 'Account non trovato. Registrati sul sito web oppure verifica le credenziali.' });
+        return res.status(404).json({ error: 'Account non trovato. Registrati sul sito web o nell\'app oppure verifica le credenziali.' });
       }
 
-      if (found.password !== (pwd || '').trim()) {
+      if ((found.password || '').trim() !== (pwd || '').trim()) {
         return res.status(401).json({ error: 'Password errata. Riprova.' });
       }
 
@@ -96,7 +125,20 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Nome utente, email e password sono obbligatori.' });
       }
 
-        const lowerUser = cleanUser.toLowerCase();
+      const lowerUser = cleanUser.toLowerCase();
+      const lowerEmail = cleanEmail.toLowerCase();
+
+      const exists = Object.values(memoryCache).some(
+        acc => acc && (
+          (acc.username && acc.username.trim().toLowerCase() === lowerUser) ||
+          (acc.email && acc.email.trim().toLowerCase() === lowerEmail)
+        )
+      );
+
+      if (exists) {
+        return res.status(400).json({ error: 'Un account con questo Nome Utente o Email esiste già. Effettua l\'accesso.' });
+      }
+
       const newAccount = {
         id: `usr_${Date.now()}`,
         username: cleanUser,
@@ -105,14 +147,41 @@ export default async function handler(req, res) {
         gender: body.gender || 'Maschile',
         age: parseInt(body.age, 10) || 25,
         createdAt: new Date().toISOString(),
-        appData: { balance: 10000, positions: [], closedTrades: [], notifications: [], chatSessions: [] },
+        trialStartedAt: new Date().toISOString(),
+        appData: {
+          balance: 10000,
+          positions: [],
+          closedTrades: [],
+          notifications: [{ id: Date.now(), type: 'NEXUS SYSTEM', message: `Benvenuto su Nexus AI ${cleanUser}!` }],
+          chatSessions: [{ id: `sess-${Date.now()}`, title: 'Conversazione Principale', messages: [{ id: 1, sender: 'ai', text: `Ciao ${cleanUser}!` }] }]
+        },
         subscription: { active: false }
       };
 
       memoryCache[lowerUser] = newAccount;
+      await saveToBlob(memoryCache);
       return res.status(200).json({ success: true, user: newAccount, data: memoryCache });
+    }
+
+    // Se vengono inviati dati aggiornati dall'app (pushCloudAccounts)
+    if (body && body.data && typeof body.data === 'object') {
+      Object.keys(body.data).forEach(k => {
+        const key = k.trim().toLowerCase();
+        if (memoryCache[key]) {
+          memoryCache[key] = {
+            ...memoryCache[key],
+            ...body.data[k],
+            appData: body.data[k].appData || memoryCache[key].appData
+          };
+        } else {
+          memoryCache[key] = body.data[k];
+        }
+      });
+      await saveToBlob(memoryCache);
+      return res.status(200).json({ success: true, data: memoryCache });
     }
   }
 
   return res.status(200).json({ data: memoryCache });
 }
+

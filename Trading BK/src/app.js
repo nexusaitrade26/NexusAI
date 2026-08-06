@@ -6,7 +6,7 @@ import { errorHandler } from './middlewares/errorHandler.js';
 import authRoutes from './routes/authRoutes.js';
 import portfolioRoutes from './routes/portfolioRoutes.js';
 import tradeRoutes from './routes/tradeRoutes.js';
-import journalRoutes from './routes/studioRoutes.js';
+import journalRoutes from './routes/journalRoutes.js';
 import studioRoutes from './routes/studioRoutes.js';
 import briefingRoutes from './routes/briefingRoutes.js';
 

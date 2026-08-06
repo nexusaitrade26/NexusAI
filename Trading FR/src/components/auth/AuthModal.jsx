@@ -18,9 +18,9 @@ const EyeOffIcon = () => (
   </svg>
 );
 
-const AuthModal = ({ isOpen, onClose, currentUser, onUserChange, onLogoutRedirect, onOpenSubscription }) => {
+const AuthModal = ({ isOpen, onClose, currentUser, onUserChange, onLogoutRedirect, onOpenSubscription, initialTab = 'login' }) => {
   // Ordine Tab: 1. Accedi (Login), 2. Registrati (Register)
-  const [activeTab, setActiveTab] = useState('login'); // 'login' | 'register' | 'forgot' | 'profile'
+  const [activeTab, setActiveTab] = useState(initialTab); // 'login' | 'register' | 'forgot' | 'profile'
   
   // Form State
   const [username, setUsername] = useState('');
@@ -49,9 +49,9 @@ const AuthModal = ({ isOpen, onClose, currentUser, onUserChange, onLogoutRedirec
     if (currentUser) {
       setActiveTab('profile');
     } else {
-      setActiveTab('login');
+      setActiveTab(initialTab || 'login');
     }
-  }, [currentUser, isOpen]);
+  }, [currentUser, isOpen, initialTab]);
 
   if (!isOpen) return null;
 

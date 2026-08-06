@@ -155,27 +155,29 @@ export const registerAccount = async ({ username, email, password, gender, age }
       body: JSON.stringify({ action: 'register', username: cleanUser, email: cleanEmail, password: cleanPwd, gender, age })
     });
 
-    if (res.ok) {
-      const json = await res.json();
-      if (json && json.success && json.user) {
-        if (json.data) {
-          const localAccounts = getRegisteredAccounts();
-          localStorage.setItem(ACCOUNTS_KEY, JSON.stringify({ ...localAccounts, ...json.data }));
-        }
-
-        const newUser = json.user;
-        const lowerUser = cleanUser.toLowerCase();
-        const userAppDataKey = `nexus_user_data_${lowerUser}`;
-        if (newUser && newUser.appData) {
-          localStorage.setItem(userAppDataKey, JSON.stringify(newUser.appData));
-        }
-
-        setActiveUserSession(newUser);
-        return newUser;
+    const json = await res.json().catch(() => ({}));
+    if (res.ok && json && json.success && json.user) {
+      if (json.data) {
+        const localAccounts = getRegisteredAccounts();
+        localStorage.setItem(ACCOUNTS_KEY, JSON.stringify({ ...localAccounts, ...json.data }));
       }
+
+      const newUser = json.user;
+      const lowerUser = cleanUser.toLowerCase();
+      const userAppDataKey = `nexus_user_data_${lowerUser}`;
+      if (newUser && newUser.appData) {
+        localStorage.setItem(userAppDataKey, JSON.stringify(newUser.appData));
+      }
+
+      setActiveUserSession(newUser);
+      return newUser;
+    } else if (json && json.error) {
+      throw new Error(json.error);
     }
   } catch (err) {
-    // fallback locale se offline
+    if (err.message && !err.message.includes('Failed to fetch') && !err.message.includes('NetworkError')) {
+      throw err;
+    }
   }
 
   // Fallback locale immediato a garanzia di zero blocchi
@@ -213,6 +215,7 @@ export const registerAccount = async ({ username, email, password, gender, age }
     gender: gender || 'Maschile',
     age: parseInt(age, 10) || 25,
     createdAt: nowISO,
+    trialStartedAt: nowISO,
     appData: initialAppData,
     subscription: { active: false }
   };
@@ -241,27 +244,29 @@ export const loginAccount = async (usernameOrEmail, password) => {
       body: JSON.stringify({ action: 'login', query, password: inputPwd })
     });
 
-    if (res.ok) {
-      const json = await res.json();
-      if (json && json.success && json.user) {
-        if (json.data) {
-          const localAccounts = getRegisteredAccounts();
-          localStorage.setItem(ACCOUNTS_KEY, JSON.stringify({ ...localAccounts, ...json.data }));
-        }
-
-        const user = json.user;
-        setActiveUserSession(user);
-        if (user && user.username) {
-          const lowerUser = user.username.trim().toLowerCase();
-          if (user.appData) {
-            localStorage.setItem(`nexus_user_data_${lowerUser}`, JSON.stringify(user.appData));
-          }
-        }
-        return user;
+    const json = await res.json().catch(() => ({}));
+    if (res.ok && json && json.success && json.user) {
+      if (json.data) {
+        const localAccounts = getRegisteredAccounts();
+        localStorage.setItem(ACCOUNTS_KEY, JSON.stringify({ ...localAccounts, ...json.data }));
       }
+
+      const user = json.user;
+      setActiveUserSession(user);
+      if (user && user.username) {
+        const lowerUser = user.username.trim().toLowerCase();
+        if (user.appData) {
+          localStorage.setItem(`nexus_user_data_${lowerUser}`, JSON.stringify(user.appData));
+        }
+      }
+      return user;
+    } else if (json && json.error) {
+      throw new Error(json.error);
     }
   } catch (err) {
-    // ignore
+    if (err.message && !err.message.includes('Failed to fetch') && !err.message.includes('NetworkError')) {
+      throw err;
+    }
   }
 
   // 2. Fallback immediato su accounts uniti locale + cloud
@@ -277,7 +282,7 @@ export const loginAccount = async (usernameOrEmail, password) => {
   );
 
   if (!found) {
-    throw new Error('Account non trovato. Registrati sul sito web oppure verifica le credenziali.');
+    throw new Error('Account non trovato. Registrati sul sito web o nell\'app oppure verifica le credenziali.');
   }
 
   const storedPwd = (found.password || '').trim();
