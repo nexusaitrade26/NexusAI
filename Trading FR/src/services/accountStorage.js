@@ -59,6 +59,7 @@ export const notifyUserUpdated = () => {
 
 // Scarica gli account aggiornati dal Server Cloud in tempo reale per Web ed Android WebView Native App
 export const fetchCloudAccounts = async () => {
+  const localAccounts = getRegisteredAccounts();
   try {
     const res = await fetch(`${SERVER_ACCOUNTS_API}?t=${Date.now()}`);
     if (res.ok) {
@@ -68,14 +69,15 @@ export const fetchCloudAccounts = async () => {
         : (json && typeof json === 'object' && !Array.isArray(json)) ? json : null;
 
       if (accountsData) {
-        localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accountsData));
-        return accountsData;
+        const merged = { ...localAccounts, ...accountsData };
+        localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(merged));
+        return merged;
       }
     }
   } catch (e) {
     console.warn('Server Cloud API error, fallback a cache locale:', e);
   }
-  return getRegisteredAccounts();
+  return localAccounts;
 };
 
 // Invia l'elenco aggiornato degli account al Server Cloud h24 (con Merge profondo a prova di perdita)
@@ -153,73 +155,73 @@ export const registerAccount = async ({ username, email, password, gender, age }
       body: JSON.stringify({ action: 'register', username: cleanUser, email: cleanEmail, password: cleanPwd, gender, age })
     });
 
-    const json = await res.json();
-    if (!res.ok || json.error) {
-      throw new Error(json.error || 'Errore durante la registrazione dell\'account.');
-    }
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.success && json.user) {
+        if (json.data) {
+          const localAccounts = getRegisteredAccounts();
+          localStorage.setItem(ACCOUNTS_KEY, JSON.stringify({ ...localAccounts, ...json.data }));
+        }
 
-    if (json.data) {
-      localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(json.data));
-    }
+        const newUser = json.user;
+        const lowerUser = cleanUser.toLowerCase();
+        const userAppDataKey = `nexus_user_data_${lowerUser}`;
+        if (newUser && newUser.appData) {
+          localStorage.setItem(userAppDataKey, JSON.stringify(newUser.appData));
+        }
 
-    const newUser = json.user;
-    const lowerUser = cleanUser.toLowerCase();
-    const userAppDataKey = `nexus_user_data_${lowerUser}`;
-    if (newUser && newUser.appData) {
-      localStorage.setItem(userAppDataKey, JSON.stringify(newUser.appData));
+        setActiveUserSession(newUser);
+        return newUser;
+      }
     }
-
-    setActiveUserSession(newUser);
-    return newUser;
   } catch (err) {
-    if (err.message && !err.message.includes('fetch')) {
-      throw err;
-    }
-    // Fallback locale se offline
-    const cloudAccounts = await fetchCloudAccounts();
-    const localAccounts = getRegisteredAccounts();
-    const accounts = { ...localAccounts, ...cloudAccounts };
-    const lowerUser = cleanUser.toLowerCase();
-    const lowerEmail = cleanEmail.toLowerCase();
-
-    const exists = Object.values(accounts).some(
-      (acc) => acc && (
-        (acc.username && acc.username.trim().toLowerCase() === lowerUser) ||
-        (acc.email && acc.email.trim().toLowerCase() === lowerEmail)
-      )
-    );
-
-    if (exists) {
-      throw new Error('Un account con questo Nome Utente o Email esiste già. Effettua l\'accesso.');
-    }
-
-    const nowISO = new Date().toISOString();
-    const initialAppData = {
-      balance: 10000,
-      positions: [],
-      closedTrades: [],
-      notifications: [{ id: Date.now(), type: 'NEXUS SYSTEM', message: `Benvenuto su Nexus AI ${cleanUser}!` }],
-      chatSessions: [{ id: `sess-${Date.now()}`, title: 'Conversazione Principale', messages: [{ id: 1, sender: 'ai', text: `Ciao ${cleanUser}!` }] }]
-    };
-
-    const newAccount = {
-      id: `usr_${Date.now()}`,
-      username: cleanUser,
-      email: cleanEmail,
-      password: cleanPwd,
-      gender: gender || 'Maschile',
-      age: parseInt(age, 10) || 25,
-      createdAt: nowISO,
-      appData: initialAppData,
-      subscription: { active: false }
-    };
-
-    accounts[lowerUser] = newAccount;
-    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
-    await pushCloudAccounts(accounts);
-    setActiveUserSession(newAccount);
-    return newAccount;
+    // fallback locale se offline
   }
+
+  // Fallback locale immediato a garanzia di zero blocchi
+  const cloudAccounts = await fetchCloudAccounts();
+  const localAccounts = getRegisteredAccounts();
+  const accounts = { ...localAccounts, ...cloudAccounts };
+  const lowerUser = cleanUser.toLowerCase();
+  const lowerEmail = cleanEmail.toLowerCase();
+
+  const exists = Object.values(accounts).some(
+    (acc) => acc && (
+      (acc.username && acc.username.trim().toLowerCase() === lowerUser) ||
+      (acc.email && acc.email.trim().toLowerCase() === lowerEmail)
+    )
+  );
+
+  if (exists) {
+    throw new Error('Un account con questo Nome Utente o Email esiste già. Effettua l\'accesso.');
+  }
+
+  const nowISO = new Date().toISOString();
+  const initialAppData = {
+    balance: 10000,
+    positions: [],
+    closedTrades: [],
+    notifications: [{ id: Date.now(), type: 'NEXUS SYSTEM', message: `Benvenuto su Nexus AI ${cleanUser}!` }],
+    chatSessions: [{ id: `sess-${Date.now()}`, title: 'Conversazione Principale', messages: [{ id: 1, sender: 'ai', text: `Ciao ${cleanUser}!` }] }]
+  };
+
+  const newAccount = {
+    id: `usr_${Date.now()}`,
+    username: cleanUser,
+    email: cleanEmail,
+    password: cleanPwd,
+    gender: gender || 'Maschile',
+    age: parseInt(age, 10) || 25,
+    createdAt: nowISO,
+    appData: initialAppData,
+    subscription: { active: false }
+  };
+
+  accounts[lowerUser] = newAccount;
+  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+  await pushCloudAccounts(accounts);
+  setActiveUserSession(newAccount);
+  return newAccount;
 };
 
 // Autenticazione / Login account con verifica sul Server Cloud h24 + fallback locale integrato
@@ -231,7 +233,7 @@ export const loginAccount = async (usernameOrEmail, password) => {
     throw new Error('Inserisci nome utente / email e password.');
   }
 
-  // Chiamata diretta Server-Side per Login Reale Atomico h24
+  // 1. Chiamata diretta Server-Side per Login Reale Atomico h24
   try {
     const res = await fetch(SERVER_ACCOUNTS_API, {
       method: 'POST',
@@ -239,56 +241,57 @@ export const loginAccount = async (usernameOrEmail, password) => {
       body: JSON.stringify({ action: 'login', query, password: inputPwd })
     });
 
-    const json = await res.json();
-    if (!res.ok || json.error) {
-      throw new Error(json.error || 'Account non trovato. Registrati sul sito web oppure verifica le credenziali.');
-    }
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.success && json.user) {
+        if (json.data) {
+          const localAccounts = getRegisteredAccounts();
+          localStorage.setItem(ACCOUNTS_KEY, JSON.stringify({ ...localAccounts, ...json.data }));
+        }
 
-    if (json.data) {
-      localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(json.data));
-    }
-
-    const user = json.user;
-    setActiveUserSession(user);
-    if (user && user.username) {
-      const lowerUser = user.username.trim().toLowerCase();
-      if (user.appData) {
-        localStorage.setItem(`nexus_user_data_${lowerUser}`, JSON.stringify(user.appData));
+        const user = json.user;
+        setActiveUserSession(user);
+        if (user && user.username) {
+          const lowerUser = user.username.trim().toLowerCase();
+          if (user.appData) {
+            localStorage.setItem(`nexus_user_data_${lowerUser}`, JSON.stringify(user.appData));
+          }
+        }
+        return user;
       }
     }
-    return user;
   } catch (err) {
-    if (err.message && !err.message.includes('fetch')) {
-      throw err;
-    }
-    const cloudAccounts = await fetchCloudAccounts();
-    const localAccounts = getRegisteredAccounts();
-    const accounts = { ...localAccounts, ...cloudAccounts };
-
-    const found = Object.values(accounts).find(
-      (acc) => acc && (
-        (acc.username && acc.username.trim().toLowerCase() === query) ||
-        (acc.email && acc.email.trim().toLowerCase() === query)
-      )
-    );
-
-    if (!found) {
-      throw new Error('Account non trovato. Registrati sul sito web oppure verifica le credenziali.');
-    }
-
-    const storedPwd = (found.password || '').trim();
-    if (storedPwd !== inputPwd) {
-      throw new Error('Password errata. Riprova o recupera la password.');
-    }
-
-    if (found.appData && found.username) {
-      const key = `nexus_user_data_${found.username.trim().toLowerCase()}`;
-      localStorage.setItem(key, JSON.stringify(found.appData));
-    }
-
-    setActiveUserSession(found);
-    return found;
+    // ignore
   }
+
+  // 2. Fallback immediato su accounts uniti locale + cloud
+  const cloudAccounts = await fetchCloudAccounts();
+  const localAccounts = getRegisteredAccounts();
+  const accounts = { ...localAccounts, ...cloudAccounts };
+
+  const found = Object.values(accounts).find(
+    (acc) => acc && (
+      (acc.username && acc.username.trim().toLowerCase() === query) ||
+      (acc.email && acc.email.trim().toLowerCase() === query)
+    )
+  );
+
+  if (!found) {
+    throw new Error('Account non trovato. Registrati sul sito web oppure verifica le credenziali.');
+  }
+
+  const storedPwd = (found.password || '').trim();
+  if (storedPwd !== inputPwd) {
+    throw new Error('Password errata. Riprova o recupera la password.');
+  }
+
+  if (found.appData && found.username) {
+    const key = `nexus_user_data_${found.username.trim().toLowerCase()}`;
+    localStorage.setItem(key, JSON.stringify(found.appData));
+  }
+
+  setActiveUserSession(found);
+  return found;
 };
 
 // Attiva un Abbonamento per l'Account Attivo con data di scadenza calcolata
