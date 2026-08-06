@@ -1,8 +1,7 @@
 // Vercel Serverless Cloud DB Server & Sync Endpoint per Nexus AI (Enterprise Persistent Storage)
 const JSON_BLOB_URL = 'https://jsonblob.com/api/jsonBlob/019fd26c-ffbe-716d-9155-6c737d3bc08c';
 
-// Memoria condivisa persistente per l'ambiente serverless
-let memoryCache = {
+const DEFAULT_ACCOUNTS = {
   tommy: {
     id: 'usr_1785864209292',
     username: 'Tommy',
@@ -17,11 +16,6 @@ let memoryCache = {
     defaultLot: '1.0',
     defaultSlPct: '3.0',
     defaultTpPct: '6.0',
-    soundOrderExec: true,
-    soundSlTp: true,
-    notifMarketAi: true,
-    notifCopyTrading: true,
-    notifCapitalRisk: true,
     createdAt: '2026-08-04T17:23:29.292Z',
     trialStartedAt: '2026-08-04T17:23:29.292Z',
     subscription: {
@@ -39,6 +33,8 @@ let memoryCache = {
     password: '123'
   }
 };
+
+let memoryCache = { ...DEFAULT_ACCOUNTS };
 
 // Helper per il merge profondo di appData (posizioni, trade chiusi, notifiche, chat)
 const mergeAppData = (existing = {}, incoming = {}) => {
@@ -107,13 +103,18 @@ export default async function handler(req, res) {
       if (response.ok) {
         const json = await response.json();
         if (json && typeof json === 'object' && !Array.isArray(json) && Object.keys(json).length > 0) {
+          memoryCache = { ...DEFAULT_ACCOUNTS, ...memoryCache };
           Object.keys(json).forEach(k => {
-            memoryCache[k] = {
-              ...(memoryCache[k] || {}),
+            const cleanK = k.trim().toLowerCase();
+            // Ignora chiavi riservate erroneamente salvate
+            if (cleanK === 'action' || cleanK === 'query' || cleanK === 'password') return;
+
+            memoryCache[cleanK] = {
+              ...(memoryCache[cleanK] || {}),
               ...json[k],
-              appData: (json[k].appData || memoryCache[k]?.appData)
-                ? mergeAppData(memoryCache[k]?.appData, json[k].appData)
-                : memoryCache[k]?.appData
+              appData: (json[k].appData || memoryCache[cleanK]?.appData)
+                ? mergeAppData(memoryCache[cleanK]?.appData, json[k].appData)
+                : memoryCache[cleanK]?.appData
             };
           });
         }
@@ -124,37 +125,13 @@ export default async function handler(req, res) {
     return memoryCache;
   };
 
-  // GET: Lettura account dal Server Cloud
-  if (req.method === 'GET') {
-    const data = await fetchCloudBlob();
-    return res.status(200).json({ data });
-  }
-
-  // POST / PUT: Scrittura account nel Server Cloud (Merge Sicuro Atomico)
-  if (req.method === 'POST' || req.method === 'PUT') {
+  // Helper per salvare la memoryCache corrente su JSONBlob
+  const saveCloudBlob = async () => {
     try {
-      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const incoming = (body && body.data) ? body.data : (body && body.accounts) ? body.accounts : body;
+      memoryCache = { ...DEFAULT_ACCOUNTS, ...memoryCache };
+      delete memoryCache.action;
+      delete memoryCache.query;
 
-      await fetchCloudBlob();
-
-      if (incoming && typeof incoming === 'object') {
-        Object.keys(incoming).forEach((key) => {
-          if (memoryCache[key]) {
-            memoryCache[key] = {
-              ...memoryCache[key],
-              ...incoming[key],
-              appData: (incoming[key].appData || memoryCache[key].appData)
-                ? mergeAppData(memoryCache[key].appData, incoming[key].appData)
-                : memoryCache[key].appData
-            };
-          } else {
-            memoryCache[key] = incoming[key];
-          }
-        });
-      }
-
-      // Salvataggio atomico su JSONBlob con User-Agent
       const putRes = await fetch(JSON_BLOB_URL, {
         method: 'PUT',
         headers: {
@@ -164,10 +141,161 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify(memoryCache)
       });
-
       if (putRes.ok) {
         const updatedData = await putRes.json();
-        memoryCache = { ...memoryCache, ...updatedData };
+        if (updatedData && typeof updatedData === 'object' && !Array.isArray(updatedData)) {
+          Object.keys(updatedData).forEach(k => {
+            const cleanK = k.trim().toLowerCase();
+            if (cleanK === 'action' || cleanK === 'query' || cleanK === 'password') return;
+            if (updatedData[k] && typeof updatedData[k] === 'object') {
+              memoryCache[cleanK] = { ...(memoryCache[cleanK] || {}), ...updatedData[k] };
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Save JSON Blob Error:', e);
+    }
+    return memoryCache;
+  };
+
+  // GET: Lettura account dal Server Cloud
+  if (req.method === 'GET') {
+    const data = await fetchCloudBlob();
+    return res.status(200).json({ data });
+  }
+
+  // POST / PUT: Gestione Registrazione, Login e Scrittura Account
+  if (req.method === 'POST' || req.method === 'PUT') {
+    try {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      await fetchCloudBlob();
+
+      // AZIONE 1: REGISTRAZIONE DIRECT SERVER-SIDE
+      if (body && body.action === 'register') {
+        const { username, email, password, gender, age } = body;
+        const cleanUser = (username || '').trim();
+        const cleanEmail = (email || '').trim();
+        const cleanPwd = (password || '').trim();
+
+        if (!cleanUser || !cleanEmail || !cleanPwd) {
+          return res.status(400).json({ error: 'Nome utente, email e password sono obbligatori.' });
+        }
+
+        const lowerUser = cleanUser.toLowerCase();
+        const lowerEmail = cleanEmail.toLowerCase();
+
+        const exists = Object.values(memoryCache).some(
+          acc => acc && (
+            (acc.username && acc.username.trim().toLowerCase() === lowerUser) ||
+            (acc.email && acc.email.trim().toLowerCase() === lowerEmail)
+          )
+        );
+
+        if (exists) {
+          return res.status(400).json({ error: 'Un account con questo Nome Utente o Email esiste già. Effettua l\'accesso.' });
+        }
+
+        const nowISO = new Date().toISOString();
+        const initialAppData = {
+          balance: 10000,
+          positions: [],
+          closedTrades: [],
+          notifications: [
+            {
+              id: Date.now(),
+              type: 'NEXUS SYSTEM',
+              message: `Benvenuto su Nexus AI ${cleanUser}! Il tuo account è ora attivo.`
+            }
+          ],
+          chatSessions: [
+            {
+              id: `sess-${Date.now()}`,
+              title: 'Conversazione Principale',
+              timestamp: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
+              messages: [
+                {
+                  id: 1,
+                  sender: 'ai',
+                  text: `Ciao ${cleanUser}! Sono Nexus AI, il tuo assistente di trading intelligente.`,
+                  timestamp: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+                }
+              ]
+            }
+          ]
+        };
+
+        const newAccount = {
+          id: `usr_${Date.now()}`,
+          username: cleanUser,
+          email: cleanEmail,
+          password: cleanPwd,
+          gender: gender || 'Maschile',
+          age: parseInt(age, 10) || 25,
+          experience: 'Intermedio (1-3 Anni)',
+          preferredAsset: 'Crypto & Forex',
+          theme: 'dark',
+          currency: 'USD ($)',
+          defaultLot: '1.0',
+          defaultSlPct: '3.0',
+          defaultTpPct: '6.0',
+          createdAt: nowISO,
+          trialStartedAt: nowISO,
+          appData: initialAppData,
+          subscription: { active: false }
+        };
+
+        memoryCache[lowerUser] = newAccount;
+        await saveCloudBlob();
+        return res.status(200).json({ success: true, user: newAccount, data: memoryCache });
+      }
+
+      // AZIONE 2: LOGIN DIRECT SERVER-SIDE
+      if (body && body.action === 'login') {
+        const query = (body.usernameOrEmail || body.query || '').trim().toLowerCase();
+        const inputPwd = (body.password || '').trim();
+
+        const found = Object.values(memoryCache).find(
+          acc => acc && (
+            (acc.username && acc.username.trim().toLowerCase() === query) ||
+            (acc.email && acc.email.trim().toLowerCase() === query)
+          )
+        );
+
+        if (!found) {
+          return res.status(404).json({ error: 'Account non trovato. Registrati sul sito web oppure verifica le credenziali.' });
+        }
+
+        const storedPwd = (found.password || '').trim();
+        if (storedPwd !== inputPwd) {
+          return res.status(401).json({ error: 'Password errata. Riprova.' });
+        }
+
+        return res.status(200).json({ success: true, user: found, data: memoryCache });
+      }
+
+      // AZIONE 3: SCRITTURA/MERGE ACCOUNT STANDARD (POST/PUT GENERICO PER DATA O ACCOUNTS)
+      if (body && (body.data || body.accounts)) {
+        const incoming = body.data || body.accounts;
+        if (incoming && typeof incoming === 'object') {
+          Object.keys(incoming).forEach((key) => {
+            const cleanKey = key.trim().toLowerCase();
+            if (cleanKey === 'action' || cleanKey === 'query' || cleanKey === 'password') return;
+
+            if (memoryCache[cleanKey]) {
+              memoryCache[cleanKey] = {
+                ...memoryCache[cleanKey],
+                ...incoming[key],
+                appData: (incoming[key].appData || memoryCache[cleanKey].appData)
+                  ? mergeAppData(memoryCache[cleanKey].appData, incoming[key].appData)
+                  : memoryCache[cleanKey].appData
+              };
+            } else {
+              memoryCache[cleanKey] = incoming[key];
+            }
+          });
+        }
+        await saveCloudBlob();
       }
 
       return res.status(200).json({ data: memoryCache });
