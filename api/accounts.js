@@ -106,7 +106,6 @@ export default async function handler(req, res) {
           memoryCache = { ...DEFAULT_ACCOUNTS, ...memoryCache };
           Object.keys(json).forEach(k => {
             const cleanK = k.trim().toLowerCase();
-            // Ignora chiavi riservate erroneamente salvate
             if (cleanK === 'action' || cleanK === 'query' || cleanK === 'password') return;
 
             memoryCache[cleanK] = {
@@ -168,7 +167,13 @@ export default async function handler(req, res) {
   // POST / PUT: Gestione Registrazione, Login e Scrittura Account
   if (req.method === 'POST' || req.method === 'PUT') {
     try {
-      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      let body = req.body;
+      if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch (e) {}
+      } else if (body && Buffer.isBuffer(body)) {
+        try { body = JSON.parse(body.toString('utf-8')); } catch (e) {}
+      }
+
       await fetchCloudBlob();
 
       // AZIONE 1: REGISTRAZIONE DIRECT SERVER-SIDE
