@@ -106,6 +106,9 @@ export default async function handler(req, res) {
           memoryCache = { ...DEFAULT_ACCOUNTS, ...memoryCache };
           Object.keys(json).forEach(k => {
             const cleanK = k.trim().toLowerCase();
+            // Ignora chiavi riservate erroneamente salvate
+            if (cleanK === 'action' || cleanK === 'query' || cleanK === 'password') return;
+
             memoryCache[cleanK] = {
               ...(memoryCache[cleanK] || {}),
               ...json[k],
@@ -126,6 +129,9 @@ export default async function handler(req, res) {
   const saveCloudBlob = async () => {
     try {
       memoryCache = { ...DEFAULT_ACCOUNTS, ...memoryCache };
+      delete memoryCache.action;
+      delete memoryCache.query;
+
       const putRes = await fetch(JSON_BLOB_URL, {
         method: 'PUT',
         headers: {
@@ -140,6 +146,7 @@ export default async function handler(req, res) {
         if (updatedData && typeof updatedData === 'object' && !Array.isArray(updatedData)) {
           Object.keys(updatedData).forEach(k => {
             const cleanK = k.trim().toLowerCase();
+            if (cleanK === 'action' || cleanK === 'query' || cleanK === 'password') return;
             if (updatedData[k] && typeof updatedData[k] === 'object') {
               memoryCache[cleanK] = { ...(memoryCache[cleanK] || {}), ...updatedData[k] };
             }
@@ -259,33 +266,38 @@ export default async function handler(req, res) {
           return res.status(404).json({ error: 'Account non trovato. Registrati sul sito web oppure verifica le credenziali.' });
         }
 
-        if (found.password !== inputPwd) {
+        const storedPwd = (found.password || '').trim();
+        if (storedPwd !== inputPwd) {
           return res.status(401).json({ error: 'Password errata. Riprova.' });
         }
 
         return res.status(200).json({ success: true, user: found, data: memoryCache });
       }
 
-      // AZIONE 3: SCRITTURA/MERGE ACCOUNT STANDARD (POST/PUT GENERICO)
-      const incoming = (body && body.data) ? body.data : (body && body.accounts) ? body.accounts : body;
-      if (incoming && typeof incoming === 'object') {
-        Object.keys(incoming).forEach((key) => {
-          const cleanKey = key.trim().toLowerCase();
-          if (memoryCache[cleanKey]) {
-            memoryCache[cleanKey] = {
-              ...memoryCache[cleanKey],
-              ...incoming[key],
-              appData: (incoming[key].appData || memoryCache[cleanKey].appData)
-                ? mergeAppData(memoryCache[cleanKey].appData, incoming[key].appData)
-                : memoryCache[cleanKey].appData
-            };
-          } else {
-            memoryCache[cleanKey] = incoming[key];
-          }
-        });
+      // AZIONE 3: SCRITTURA/MERGE ACCOUNT STANDARD (POST/PUT GENERICO PER DATA O ACCOUNTS)
+      if (body && (body.data || body.accounts)) {
+        const incoming = body.data || body.accounts;
+        if (incoming && typeof incoming === 'object') {
+          Object.keys(incoming).forEach((key) => {
+            const cleanKey = key.trim().toLowerCase();
+            if (cleanKey === 'action' || cleanKey === 'query' || cleanKey === 'password') return;
+
+            if (memoryCache[cleanKey]) {
+              memoryCache[cleanKey] = {
+                ...memoryCache[cleanKey],
+                ...incoming[key],
+                appData: (incoming[key].appData || memoryCache[cleanKey].appData)
+                  ? mergeAppData(memoryCache[cleanKey].appData, incoming[key].appData)
+                  : memoryCache[cleanKey].appData
+              };
+            } else {
+              memoryCache[cleanKey] = incoming[key];
+            }
+          });
+        }
+        await saveCloudBlob();
       }
 
-      await saveCloudBlob();
       return res.status(200).json({ data: memoryCache });
     } catch (e) {
       console.error('Update JSON Blob Error:', e);
