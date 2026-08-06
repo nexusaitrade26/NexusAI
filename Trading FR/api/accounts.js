@@ -122,20 +122,152 @@ export default async function handler(req, res) {
     return memoryCache;
   };
 
+  // Helper per salvare la memoryCache corrente su JSONBlob
+  const saveCloudBlob = async () => {
+    try {
+      memoryCache = { ...DEFAULT_ACCOUNTS, ...memoryCache };
+      const putRes = await fetch(JSON_BLOB_URL, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
+        body: JSON.stringify(memoryCache)
+      });
+      if (putRes.ok) {
+        const updatedData = await putRes.json();
+        if (updatedData && typeof updatedData === 'object' && !Array.isArray(updatedData)) {
+          Object.keys(updatedData).forEach(k => {
+            const cleanK = k.trim().toLowerCase();
+            if (updatedData[k] && typeof updatedData[k] === 'object') {
+              memoryCache[cleanK] = { ...(memoryCache[cleanK] || {}), ...updatedData[k] };
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Save JSON Blob Error:', e);
+    }
+    return memoryCache;
+  };
+
   // GET: Lettura account dal Server Cloud
   if (req.method === 'GET') {
     const data = await fetchCloudBlob();
     return res.status(200).json({ data });
   }
 
-  // POST / PUT: Scrittura account nel Server Cloud (Merge Sicuro Atomico)
+  // POST / PUT: Gestione Registrazione, Login e Scrittura Account
   if (req.method === 'POST' || req.method === 'PUT') {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const incoming = (body && body.data) ? body.data : (body && body.accounts) ? body.accounts : body;
-
       await fetchCloudBlob();
 
+      // AZIONE 1: REGISTRAZIONE DIRECT SERVER-SIDE
+      if (body && body.action === 'register') {
+        const { username, email, password, gender, age } = body;
+        const cleanUser = (username || '').trim();
+        const cleanEmail = (email || '').trim();
+        const cleanPwd = (password || '').trim();
+
+        if (!cleanUser || !cleanEmail || !cleanPwd) {
+          return res.status(400).json({ error: 'Nome utente, email e password sono obbligatori.' });
+        }
+
+        const lowerUser = cleanUser.toLowerCase();
+        const lowerEmail = cleanEmail.toLowerCase();
+
+        const exists = Object.values(memoryCache).some(
+          acc => acc && (
+            (acc.username && acc.username.trim().toLowerCase() === lowerUser) ||
+            (acc.email && acc.email.trim().toLowerCase() === lowerEmail)
+          )
+        );
+
+        if (exists) {
+          return res.status(400).json({ error: 'Un account con questo Nome Utente o Email esiste già. Effettua l\'accesso.' });
+        }
+
+        const nowISO = new Date().toISOString();
+        const initialAppData = {
+          balance: 10000,
+          positions: [],
+          closedTrades: [],
+          notifications: [
+            {
+              id: Date.now(),
+              type: 'NEXUS SYSTEM',
+              message: `Benvenuto su Nexus AI ${cleanUser}! Il tuo account è ora attivo.`
+            }
+          ],
+          chatSessions: [
+            {
+              id: `sess-${Date.now()}`,
+              title: 'Conversazione Principale',
+              timestamp: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
+              messages: [
+                {
+                  id: 1,
+                  sender: 'ai',
+                  text: `Ciao ${cleanUser}! Sono Nexus AI, il tuo assistente di trading intelligente.`,
+                  timestamp: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+                }
+              ]
+            }
+          ]
+        };
+
+        const newAccount = {
+          id: `usr_${Date.now()}`,
+          username: cleanUser,
+          email: cleanEmail,
+          password: cleanPwd,
+          gender: gender || 'Maschile',
+          age: parseInt(age, 10) || 25,
+          experience: 'Intermedio (1-3 Anni)',
+          preferredAsset: 'Crypto & Forex',
+          theme: 'dark',
+          currency: 'USD ($)',
+          defaultLot: '1.0',
+          defaultSlPct: '3.0',
+          defaultTpPct: '6.0',
+          createdAt: nowISO,
+          trialStartedAt: nowISO,
+          appData: initialAppData,
+          subscription: { active: false }
+        };
+
+        memoryCache[lowerUser] = newAccount;
+        await saveCloudBlob();
+        return res.status(200).json({ success: true, user: newAccount, data: memoryCache });
+      }
+
+      // AZIONE 2: LOGIN DIRECT SERVER-SIDE
+      if (body && body.action === 'login') {
+        const query = (body.usernameOrEmail || body.query || '').trim().toLowerCase();
+        const inputPwd = (body.password || '').trim();
+
+        const found = Object.values(memoryCache).find(
+          acc => acc && (
+            (acc.username && acc.username.trim().toLowerCase() === query) ||
+            (acc.email && acc.email.trim().toLowerCase() === query)
+          )
+        );
+
+        if (!found) {
+          return res.status(404).json({ error: 'Account non trovato. Registrati sul sito web oppure verifica le credenziali.' });
+        }
+
+        if (found.password !== inputPwd) {
+          return res.status(401).json({ error: 'Password errata. Riprova.' });
+        }
+
+        return res.status(200).json({ success: true, user: found, data: memoryCache });
+      }
+
+      // AZIONE 3: SCRITTURA/MERGE ACCOUNT STANDARD (POST/PUT GENERICO)
+      const incoming = (body && body.data) ? body.data : (body && body.accounts) ? body.accounts : body;
       if (incoming && typeof incoming === 'object') {
         Object.keys(incoming).forEach((key) => {
           const cleanKey = key.trim().toLowerCase();
@@ -153,26 +285,7 @@ export default async function handler(req, res) {
         });
       }
 
-      memoryCache = { ...DEFAULT_ACCOUNTS, ...memoryCache };
-
-      // Salvataggio atomico su JSONBlob con User-Agent
-      const putRes = await fetch(JSON_BLOB_URL, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        },
-        body: JSON.stringify(memoryCache)
-      });
-
-      if (putRes.ok) {
-        const updatedData = await putRes.json();
-        if (updatedData && typeof updatedData === 'object' && !Array.isArray(updatedData)) {
-          memoryCache = { ...memoryCache, ...updatedData };
-        }
-      }
-
+      await saveCloudBlob();
       return res.status(200).json({ data: memoryCache });
     } catch (e) {
       console.error('Update JSON Blob Error:', e);
