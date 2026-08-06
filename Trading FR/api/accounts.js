@@ -1,8 +1,7 @@
 // Vercel Serverless Cloud DB Server & Sync Endpoint per Nexus AI (Enterprise Persistent Storage)
 const JSON_BLOB_URL = 'https://jsonblob.com/api/jsonBlob/019fd26c-ffbe-716d-9155-6c737d3bc08c';
 
-// Memoria condivisa persistente per l'ambiente serverless
-let memoryCache = {
+const DEFAULT_ACCOUNTS = {
   tommy: {
     id: 'usr_1785864209292',
     username: 'Tommy',
@@ -17,11 +16,6 @@ let memoryCache = {
     defaultLot: '1.0',
     defaultSlPct: '3.0',
     defaultTpPct: '6.0',
-    soundOrderExec: true,
-    soundSlTp: true,
-    notifMarketAi: true,
-    notifCopyTrading: true,
-    notifCapitalRisk: true,
     createdAt: '2026-08-04T17:23:29.292Z',
     trialStartedAt: '2026-08-04T17:23:29.292Z',
     subscription: {
@@ -39,6 +33,8 @@ let memoryCache = {
     password: '123'
   }
 };
+
+let memoryCache = { ...DEFAULT_ACCOUNTS };
 
 // Helper per il merge profondo di appData (posizioni, trade chiusi, notifiche, chat)
 const mergeAppData = (existing = {}, incoming = {}) => {
@@ -107,13 +103,15 @@ export default async function handler(req, res) {
       if (response.ok) {
         const json = await response.json();
         if (json && typeof json === 'object' && !Array.isArray(json) && Object.keys(json).length > 0) {
+          memoryCache = { ...DEFAULT_ACCOUNTS, ...memoryCache };
           Object.keys(json).forEach(k => {
-            memoryCache[k] = {
-              ...(memoryCache[k] || {}),
+            const cleanK = k.trim().toLowerCase();
+            memoryCache[cleanK] = {
+              ...(memoryCache[cleanK] || {}),
               ...json[k],
-              appData: (json[k].appData || memoryCache[k]?.appData)
-                ? mergeAppData(memoryCache[k]?.appData, json[k].appData)
-                : memoryCache[k]?.appData
+              appData: (json[k].appData || memoryCache[cleanK]?.appData)
+                ? mergeAppData(memoryCache[cleanK]?.appData, json[k].appData)
+                : memoryCache[cleanK]?.appData
             };
           });
         }
@@ -140,19 +138,22 @@ export default async function handler(req, res) {
 
       if (incoming && typeof incoming === 'object') {
         Object.keys(incoming).forEach((key) => {
-          if (memoryCache[key]) {
-            memoryCache[key] = {
-              ...memoryCache[key],
+          const cleanKey = key.trim().toLowerCase();
+          if (memoryCache[cleanKey]) {
+            memoryCache[cleanKey] = {
+              ...memoryCache[cleanKey],
               ...incoming[key],
-              appData: (incoming[key].appData || memoryCache[key].appData)
-                ? mergeAppData(memoryCache[key].appData, incoming[key].appData)
-                : memoryCache[key].appData
+              appData: (incoming[key].appData || memoryCache[cleanKey].appData)
+                ? mergeAppData(memoryCache[cleanKey].appData, incoming[key].appData)
+                : memoryCache[cleanKey].appData
             };
           } else {
-            memoryCache[key] = incoming[key];
+            memoryCache[cleanKey] = incoming[key];
           }
         });
       }
+
+      memoryCache = { ...DEFAULT_ACCOUNTS, ...memoryCache };
 
       // Salvataggio atomico su JSONBlob con User-Agent
       const putRes = await fetch(JSON_BLOB_URL, {
@@ -167,7 +168,9 @@ export default async function handler(req, res) {
 
       if (putRes.ok) {
         const updatedData = await putRes.json();
-        memoryCache = { ...memoryCache, ...updatedData };
+        if (updatedData && typeof updatedData === 'object' && !Array.isArray(updatedData)) {
+          memoryCache = { ...memoryCache, ...updatedData };
+        }
       }
 
       return res.status(200).json({ data: memoryCache });
