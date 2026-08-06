@@ -3,8 +3,8 @@
 const ACCOUNTS_KEY = 'nexus_registered_accounts';
 const ACTIVE_USER_KEY = 'nexus_active_user_session';
 
-// Endpoint Server API HTTPS Globale attivo h24 su JSONBlob Direct Cloud DB
-const SERVER_ACCOUNTS_API = 'https://jsonblob.com/api/jsonBlob/019fd26c-ffbe-716d-9155-6c737d3bc08c';
+// Endpoint Server API HTTPS Globale attivo h24 su Vercel Cloud Server
+const SERVER_ACCOUNTS_API = 'https://nexus-ai-eight-flax.vercel.app/api/accounts';
 
 // Helper per il merge profondo di appData (posizioni, trade chiusi, notifiche, chat)
 const mergeAppData = (existing = {}, incoming = {}) => {
@@ -60,14 +60,16 @@ export const notifyUserUpdated = () => {
 // Scarica gli account aggiornati dal Server Cloud in tempo reale per Web ed Android WebView Native App
 export const fetchCloudAccounts = async () => {
   try {
-    const res = await fetch(`${SERVER_ACCOUNTS_API}?t=${Date.now()}`, {
-      headers: { 'Accept': 'application/json' }
-    });
+    const res = await fetch(`${SERVER_ACCOUNTS_API}?t=${Date.now()}`);
     if (res.ok) {
       const json = await res.json();
-      if (json && typeof json === 'object' && !Array.isArray(json)) {
-        localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(json));
-        return json;
+      const accountsData = (json && json.data && typeof json.data === 'object')
+        ? json.data
+        : (json && typeof json === 'object' && !Array.isArray(json)) ? json : null;
+
+      if (accountsData) {
+        localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accountsData));
+        return accountsData;
       }
     }
   } catch (e) {
@@ -81,13 +83,14 @@ export const pushCloudAccounts = async (accountsObj) => {
   try {
     let currentCloud = {};
     try {
-      const res = await fetch(`${SERVER_ACCOUNTS_API}?t=${Date.now()}`, {
-        headers: { 'Accept': 'application/json' }
-      });
+      const res = await fetch(`${SERVER_ACCOUNTS_API}?t=${Date.now()}`);
       if (res.ok) {
         const json = await res.json();
-        if (json && typeof json === 'object' && !Array.isArray(json)) {
-          currentCloud = json;
+        const accountsData = (json && json.data && typeof json.data === 'object')
+          ? json.data
+          : (json && typeof json === 'object' && !Array.isArray(json)) ? json : null;
+        if (accountsData) {
+          currentCloud = accountsData;
         }
       }
     } catch (err) {
@@ -97,24 +100,25 @@ export const pushCloudAccounts = async (accountsObj) => {
     const merged = { ...currentCloud };
     if (accountsObj && typeof accountsObj === 'object') {
       Object.keys(accountsObj).forEach(key => {
-        if (merged[key]) {
-          merged[key] = {
-            ...merged[key],
+        const cleanKey = key.trim().toLowerCase();
+        if (merged[cleanKey]) {
+          merged[cleanKey] = {
+            ...merged[cleanKey],
             ...accountsObj[key],
-            appData: (accountsObj[key].appData || merged[key].appData)
-              ? mergeAppData(merged[key].appData, accountsObj[key].appData)
-              : merged[key].appData
+            appData: (accountsObj[key].appData || merged[cleanKey].appData)
+              ? mergeAppData(merged[cleanKey].appData, accountsObj[key].appData)
+              : merged[cleanKey].appData
           };
         } else {
-          merged[key] = accountsObj[key];
+          merged[cleanKey] = accountsObj[key];
         }
       });
     }
 
     await fetch(SERVER_ACCOUNTS_API, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify(merged)
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: merged })
     });
   } catch (e) {
     console.warn('Errore invio dati al Server Cloud:', e);
