@@ -6,6 +6,9 @@ const ACTIVE_USER_KEY = 'nexus_active_user_session';
 // Endpoint Server API HTTPS Globale attivo h24 su Vercel Cloud Server
 const SERVER_ACCOUNTS_API = 'https://nexus-ai-eight-flax.vercel.app/api/accounts';
 
+// Helper di utilità per conversione sicura a stringa in minuscolo
+const toLower = (val) => (val != null ? String(val).trim().toLowerCase() : '');
+
 // Helper per il merge profondo di appData (posizioni, trade chiusi, notifiche, chat)
 const mergeAppData = (existing = {}, incoming = {}) => {
   if (!incoming && !existing) return { balance: 10000.0, positions: [], closedTrades: [], chatSessions: [], notifications: [] };
@@ -102,13 +105,15 @@ export const pushCloudAccounts = async (accountsObj) => {
     const merged = { ...currentCloud };
     if (accountsObj && typeof accountsObj === 'object') {
       Object.keys(accountsObj).forEach(key => {
-        const cleanKey = key.trim().toLowerCase();
+        if (!key) return;
+        const cleanKey = toLower(key);
+        if (!cleanKey) return;
         if (merged[cleanKey]) {
           merged[cleanKey] = {
             ...merged[cleanKey],
             ...accountsObj[key],
-            appData: (accountsObj[key].appData || merged[cleanKey].appData)
-              ? mergeAppData(merged[cleanKey].appData, accountsObj[key].appData)
+            appData: (accountsObj[key] && accountsObj[key].appData || merged[cleanKey].appData)
+              ? mergeAppData(merged[cleanKey].appData, accountsObj[key]?.appData)
               : merged[cleanKey].appData
           };
         } else {
@@ -139,9 +144,9 @@ export const getRegisteredAccounts = () => {
 
 // Registra un nuovo account ed inizializza il trial di 5 minuti sia sul Server Cloud che in locale
 export const registerAccount = async ({ username, email, password, gender, age }) => {
-  const cleanUser = (username || '').trim();
-  const cleanEmail = (email || '').trim();
-  const cleanPwd = (password || '').trim();
+  const cleanUser = (username || '').toString().trim();
+  const cleanEmail = (email || '').toString().trim();
+  const cleanPwd = (password || '').toString().trim();
 
   if (!cleanUser || !cleanEmail || !cleanPwd) {
     throw new Error('Nome utente, email e password sono obbligatori.');
@@ -163,7 +168,7 @@ export const registerAccount = async ({ username, email, password, gender, age }
       }
 
       const newUser = json.user;
-      const lowerUser = cleanUser.toLowerCase();
+      const lowerUser = toLower(newUser?.username || cleanUser);
       const userAppDataKey = `nexus_user_data_${lowerUser}`;
       if (newUser && newUser.appData) {
         localStorage.setItem(userAppDataKey, JSON.stringify(newUser.appData));
@@ -184,13 +189,13 @@ export const registerAccount = async ({ username, email, password, gender, age }
   const cloudAccounts = await fetchCloudAccounts();
   const localAccounts = getRegisteredAccounts();
   const accounts = { ...localAccounts, ...cloudAccounts };
-  const lowerUser = cleanUser.toLowerCase();
-  const lowerEmail = cleanEmail.toLowerCase();
+  const lowerUser = toLower(cleanUser);
+  const lowerEmail = toLower(cleanEmail);
 
   const exists = Object.values(accounts).some(
-    (acc) => acc && (
-      (acc.username && acc.username.trim().toLowerCase() === lowerUser) ||
-      (acc.email && acc.email.trim().toLowerCase() === lowerEmail)
+    (acc) => acc && typeof acc === 'object' && (
+      toLower(acc.username) === lowerUser ||
+      toLower(acc.email) === lowerEmail
     )
   );
 
@@ -229,8 +234,8 @@ export const registerAccount = async ({ username, email, password, gender, age }
 
 // Autenticazione / Login account con verifica sul Server Cloud h24 + fallback locale integrato
 export const loginAccount = async (usernameOrEmail, password) => {
-  const query = (usernameOrEmail || '').trim().toLowerCase();
-  const inputPwd = (password || '').trim();
+  const query = toLower(usernameOrEmail);
+  const inputPwd = (password || '').toString().trim();
 
   if (!query || !inputPwd) {
     throw new Error('Inserisci nome utente / email e password.');
@@ -254,7 +259,7 @@ export const loginAccount = async (usernameOrEmail, password) => {
       const user = json.user;
       setActiveUserSession(user);
       if (user && user.username) {
-        const lowerUser = user.username.trim().toLowerCase();
+        const lowerUser = toLower(user.username);
         if (user.appData) {
           localStorage.setItem(`nexus_user_data_${lowerUser}`, JSON.stringify(user.appData));
         }
@@ -275,9 +280,9 @@ export const loginAccount = async (usernameOrEmail, password) => {
   const accounts = { ...localAccounts, ...cloudAccounts };
 
   const found = Object.values(accounts).find(
-    (acc) => acc && (
-      (acc.username && acc.username.trim().toLowerCase() === query) ||
-      (acc.email && acc.email.trim().toLowerCase() === query)
+    (acc) => acc && typeof acc === 'object' && (
+      toLower(acc.username) === query ||
+      toLower(acc.email) === query
     )
   );
 
@@ -285,13 +290,13 @@ export const loginAccount = async (usernameOrEmail, password) => {
     throw new Error('Account non trovato. Registrati sul sito web o nell\'app oppure verifica le credenziali.');
   }
 
-  const storedPwd = (found.password || '').trim();
+  const storedPwd = (found.password || '').toString().trim();
   if (storedPwd !== inputPwd) {
     throw new Error('Password errata. Riprova o recupera la password.');
   }
 
   if (found.appData && found.username) {
-    const key = `nexus_user_data_${found.username.trim().toLowerCase()}`;
+    const key = `nexus_user_data_${toLower(found.username)}`;
     localStorage.setItem(key, JSON.stringify(found.appData));
   }
 
@@ -302,10 +307,11 @@ export const loginAccount = async (usernameOrEmail, password) => {
 // Attiva un Abbonamento per l'Account Attivo con data di scadenza calcolata
 export const activateUserSubscription = async ({ plan, paymentMethod }) => {
   const activeUser = getActiveUserSession();
-  if (!activeUser) return null;
+  if (!activeUser || !activeUser.username) return null;
 
   const accounts = await fetchCloudAccounts();
-  const key = activeUser.username.trim().toLowerCase();
+  const key = toLower(activeUser.username);
+  if (!key) return null;
 
   const now = new Date();
   const expireDate = new Date(now);
@@ -349,21 +355,25 @@ export const activateUserSubscription = async ({ plan, paymentMethod }) => {
 // Aggiorna le impostazioni ed il profilo dell'utente attivo
 export const updateActiveUserSettings = async (updatedFields) => {
   const activeUser = getActiveUserSession();
-  if (!activeUser) return null;
+  if (!activeUser || !activeUser.username) return null;
 
   const accounts = await fetchCloudAccounts();
-  const key = activeUser.username.trim().toLowerCase();
+  const key = toLower(activeUser.username);
+  if (!key) return null;
 
   const updatedUser = {
     ...activeUser,
     ...updatedFields
   };
 
-  if (updatedFields.username && updatedFields.username !== activeUser.username) {
+  if (updatedFields && updatedFields.username && updatedFields.username !== activeUser.username) {
     const oldAppData = getUserAppData(activeUser.username);
-    saveUserAppData(updatedFields.username, oldAppData);
-    delete accounts[key];
-    accounts[updatedFields.username.trim().toLowerCase()] = updatedUser;
+    const newKey = toLower(updatedFields.username);
+    if (newKey) {
+      saveUserAppData(updatedFields.username, oldAppData);
+      delete accounts[key];
+      accounts[newKey] = updatedUser;
+    }
   } else {
     accounts[key] = updatedUser;
   }
@@ -403,11 +413,12 @@ export const logoutActiveUserSession = () => {
 // OTTIENE I DATI ISOLATI DELLO SPECIFICO ACCOUNT (Con sincronizzazione dal Cloud)
 export const getUserAppData = (username) => {
   if (!username) return null;
-  const lowerUser = username.trim().toLowerCase();
+  const lowerUser = toLower(username);
+  if (!lowerUser) return null;
 
   // 1. Priorità ai dati salvati nel Cloud DB per questo account
   const accounts = getRegisteredAccounts();
-  const acc = Object.values(accounts).find(a => a && a.username && a.username.trim().toLowerCase() === lowerUser);
+  const acc = Object.values(accounts).find(a => a && typeof a === 'object' && toLower(a.username) === lowerUser);
   if (acc && acc.appData) {
     return acc.appData;
   }
@@ -433,9 +444,10 @@ export const getUserAppData = (username) => {
 // SCARICA IN TEMPO REALE DAL CLOUD I DATI DI TRADING DELL'UTENTE
 export const fetchUserAppData = async (username) => {
   if (!username) return null;
+  const lowerUser = toLower(username);
+  if (!lowerUser) return null;
   const accounts = await fetchCloudAccounts();
-  const lowerUser = username.trim().toLowerCase();
-  const acc = Object.values(accounts).find(a => a && a.username && a.username.trim().toLowerCase() === lowerUser);
+  const acc = Object.values(accounts).find(a => a && typeof a === 'object' && toLower(a.username) === lowerUser);
   if (acc && acc.appData) {
     const key = `nexus_user_data_${lowerUser}`;
     localStorage.setItem(key, JSON.stringify(acc.appData));
@@ -447,7 +459,8 @@ export const fetchUserAppData = async (username) => {
 // SALVA E SINCRONIZZA I DATI DI TRADING (POSIZIONI, BILANCIO, CHAT, NOTIFICHE) SUL CLOUD SERVER H24 IN TEMPO REALE
 export const saveUserAppData = async (username, dataObj) => {
   if (!username) return;
-  const lowerUser = username.trim().toLowerCase();
+  const lowerUser = toLower(username);
+  if (!lowerUser) return;
   const userAppDataKey = `nexus_user_data_${lowerUser}`;
   
   // 1. Salva in localStorage locale per risposta ultra-rapida dell'interfaccia
@@ -458,12 +471,12 @@ export const saveUserAppData = async (username, dataObj) => {
   let accounts = { ...localAccounts };
   
   const activeUser = getActiveUserSession();
-  let accKey = Object.keys(accounts).find(k => accounts[k] && accounts[k].username && accounts[k].username.trim().toLowerCase() === lowerUser);
+  let accKey = Object.keys(accounts).find(k => accounts[k] && typeof accounts[k] === 'object' && toLower(accounts[k].username) === lowerUser);
 
   if (!accKey || !accounts[accKey]) {
-    const userToSave = (activeUser && activeUser.username && activeUser.username.trim().toLowerCase() === lowerUser)
+    const userToSave = (activeUser && activeUser.username && toLower(activeUser.username) === lowerUser)
       ? activeUser
-      : { id: `usr_${Date.now()}`, username: username.trim(), email: `${lowerUser}@nexus.ai` };
+      : { id: `usr_${Date.now()}`, username: (username || '').toString().trim(), email: `${lowerUser}@nexus.ai` };
     accounts[lowerUser] = { ...userToSave, appData: dataObj };
     accKey = lowerUser;
   } else {

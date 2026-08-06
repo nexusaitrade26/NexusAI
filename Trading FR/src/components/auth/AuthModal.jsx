@@ -113,8 +113,8 @@ const AuthModal = ({ isOpen, onClose, currentUser, onUserChange, onLogoutRedirec
     setIsLoading(true);
     try {
       const accounts = getRegisteredAccounts();
-      const query = (forgotEmail || '').trim().toLowerCase();
-      const found = Object.values(accounts).find((acc) => acc && acc.email && acc.email.toLowerCase() === query);
+      const query = (forgotEmail || '').toString().trim().toLowerCase();
+      const found = Object.values(accounts).find((acc) => acc && typeof acc === 'object' && acc.email && String(acc.email).trim().toLowerCase() === query);
 
       if (!found) {
         throw new Error('Nessun account registrato trovato con questo indirizzo email.');
@@ -163,9 +163,9 @@ const AuthModal = ({ isOpen, onClose, currentUser, onUserChange, onLogoutRedirec
       }
 
       const accounts = getRegisteredAccounts();
-      const query = forgotEmail.trim().toLowerCase();
+      const query = (forgotEmail || '').toString().trim().toLowerCase();
       const foundKey = Object.keys(accounts).find(
-        (k) => accounts[k] && accounts[k].email && accounts[k].email.toLowerCase() === query
+        (k) => accounts[k] && typeof accounts[k] === 'object' && accounts[k].email && String(accounts[k].email).trim().toLowerCase() === query
       );
 
       if (!foundKey) {

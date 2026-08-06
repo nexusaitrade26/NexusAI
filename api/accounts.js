@@ -97,11 +97,11 @@ export default async function handler(req, res) {
     const pwd = body ? body.password : null;
 
     if (action === 'login') {
-      const targetQuery = (query || '').trim().toLowerCase();
+      const targetQuery = (query || '').toString().trim().toLowerCase();
       const found = Object.values(memoryCache).find(
-        acc => acc && (
-          (acc.username && acc.username.trim().toLowerCase() === targetQuery) ||
-          (acc.email && acc.email.trim().toLowerCase() === targetQuery)
+        acc => acc && typeof acc === 'object' && (
+          (typeof acc.username === 'string' && acc.username.trim().toLowerCase() === targetQuery) ||
+          (typeof acc.email === 'string' && acc.email.trim().toLowerCase() === targetQuery)
         )
       );
 
@@ -109,7 +109,7 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Account non trovato. Registrati sul sito web o nell\'app oppure verifica le credenziali.' });
       }
 
-      if ((found.password || '').trim() !== (pwd || '').trim()) {
+      if ((found.password || '').toString().trim() !== (pwd || '').toString().trim()) {
         return res.status(401).json({ error: 'Password errata. Riprova.' });
       }
 
@@ -117,9 +117,9 @@ export default async function handler(req, res) {
     }
 
     if (action === 'register') {
-      const cleanUser = (body.username || '').trim();
-      const cleanEmail = (body.email || '').trim();
-      const cleanPwd = (body.password || '').trim();
+      const cleanUser = (body.username || '').toString().trim();
+      const cleanEmail = (body.email || '').toString().trim();
+      const cleanPwd = (body.password || '').toString().trim();
 
       if (!cleanUser || !cleanEmail || !cleanPwd) {
         return res.status(400).json({ error: 'Nome utente, email e password sono obbligatori.' });
@@ -129,9 +129,9 @@ export default async function handler(req, res) {
       const lowerEmail = cleanEmail.toLowerCase();
 
       const exists = Object.values(memoryCache).some(
-        acc => acc && (
-          (acc.username && acc.username.trim().toLowerCase() === lowerUser) ||
-          (acc.email && acc.email.trim().toLowerCase() === lowerEmail)
+        acc => acc && typeof acc === 'object' && (
+          (typeof acc.username === 'string' && acc.username.trim().toLowerCase() === lowerUser) ||
+          (typeof acc.email === 'string' && acc.email.trim().toLowerCase() === lowerEmail)
         )
       );
 

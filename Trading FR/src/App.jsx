@@ -48,9 +48,10 @@ function App() {
       // 2. Scarica e sincronizza le impostazioni dell'utente (Tema, lotti, notifiche, subscription) dal Cloud
       try {
         const accounts = await fetchCloudAccounts();
-        const lower = active.username.trim().toLowerCase();
+        const lower = (active?.username || '').toString().trim().toLowerCase();
+        if (!lower) return;
         const updatedAccount = Object.values(accounts).find(
-          (acc) => acc && acc.username && acc.username.toLowerCase() === lower
+          (acc) => acc && typeof acc === 'object' && acc.username && String(acc.username).trim().toLowerCase() === lower
         );
 
         if (updatedAccount) {
