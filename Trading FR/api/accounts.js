@@ -31,6 +31,12 @@ const DEFAULT_ACCOUNTS = {
     username: 'Flavio',
     email: 'flavio@gmail.com',
     password: '123'
+  },
+  lucas: {
+    id: 'usr_lucas123',
+    username: 'Lucas',
+    email: 'lucas@gmail.com',
+    password: 'Lucas'
   }
 };
 
@@ -94,7 +100,8 @@ export default async function handler(req, res) {
   // Helper per caricare dal Cloud Blob con accumulo sicuro in memoryCache
   const fetchCloudBlob = async () => {
     try {
-      const response = await fetch(JSON_BLOB_URL, {
+      const response = await fetch(`${JSON_BLOB_URL}?t=${Date.now()}`, {
+        cache: 'no-store',
         headers: {
           'Accept': 'application/json',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -131,8 +138,9 @@ export default async function handler(req, res) {
       delete memoryCache.action;
       delete memoryCache.query;
 
-      const putRes = await fetch(JSON_BLOB_URL, {
+      const putRes = await fetch(`${JSON_BLOB_URL}?t=${Date.now()}`, {
         method: 'PUT',
+        cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
