@@ -40,6 +40,21 @@ const DEFAULT_ACCOUNTS = {
   }
 };
 
+function sanitizeAccounts(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return { ...DEFAULT_ACCOUNTS };
+  const clean = { ...DEFAULT_ACCOUNTS };
+  Object.keys(data).forEach(key => {
+    if (!key) return;
+    const k = key.trim().toLowerCase();
+    if (['action', 'query', 'password', 'data', 'success', 'error', 'user'].includes(k)) return;
+    const acc = data[key];
+    if (acc && typeof acc === 'object' && (acc.username || acc.email || acc.id)) {
+      clean[k] = acc;
+    }
+  });
+  return clean;
+}
+
 let memoryCache = { ...DEFAULT_ACCOUNTS };
 
 async function loadFromBlob() {
@@ -50,7 +65,7 @@ async function loadFromBlob() {
     if (res.ok) {
       const data = await res.json();
       if (data && typeof data === 'object' && !Array.isArray(data)) {
-        memoryCache = { ...DEFAULT_ACCOUNTS, ...data };
+        memoryCache = sanitizeAccounts(data);
       }
     }
   } catch (e) {
@@ -60,10 +75,11 @@ async function loadFromBlob() {
 
 async function saveToBlob(data) {
   try {
+    const cleanData = sanitizeAccounts(data);
     await fetch(JSON_BLOB_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify(cleanData)
     });
   } catch (e) {
     // fallback cache in memoria
